@@ -1,0 +1,32 @@
+# Bí mật — tuyệt đối không commit (repo này public)
+.env
+*.key
+*.pem
+frigate/config.yml
+
+# Môi trường Python
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Model weights & kết quả train
+*.pt
+*.onnx
+*.engine
+runs/
+
+# Dữ liệu & đầu ra
+datasets/
+snapshots/
+*.db
+*.sqlite3
+*.mp4
+*.avi
+*.mkv
+
+# IDE / OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

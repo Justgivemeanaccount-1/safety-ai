@@ -1,0 +1,30 @@
+# Copy thành frigate/config.yml rồi điền user/pass thật.
+# config.yml đã nằm trong .gitignore — repo này public, đừng commit mật khẩu camera.
+
+mqtt:
+  host: mosquitto
+
+go2rtc:
+  streams:
+    xuong_han: rtsp://USER:PASS@192.168.1.64:554/Streams/Channels/101
+    xuong_han_sub: rtsp://USER:PASS@192.168.1.64:554/Streams/Channels/102
+
+cameras:
+  xuong_han:
+    ffmpeg:
+      inputs:
+        - path: rtsp://127.0.0.1:8554/xuong_han
+          input_args: preset-rtsp-restream
+          roles: [record]
+        - path: rtsp://127.0.0.1:8554/xuong_han_sub
+          input_args: preset-rtsp-restream
+          roles: [detect]
+    detect:
+      fps: 5
+    record:
+      enabled: true
+    zones:
+      vung_nguy_hiem:
+        coordinates: 0.10,0.55,0.50,0.53,0.53,0.98,0.08,0.99
+        objects: [person]
+        loitering_time: 2

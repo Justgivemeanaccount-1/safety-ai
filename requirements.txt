@@ -1,0 +1,9 @@
+# PyTorch bản CUDA cài riêng, xem README:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+
+ultralytics
+opencv-python
+requests
+paho-mqtt
+streamlit
+python-dotenv

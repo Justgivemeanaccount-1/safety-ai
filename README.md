@@ -1,0 +1,77 @@
+# Hệ thống phát hiện sự cố an toàn lao động bằng camera AI
+
+Đồ án 12 tuần, nhóm 3 người. Frigate làm nền VMS, nhóm làm **Module AI an toàn** gắn vào Frigate.
+
+| Khối | Ai làm | Việc |
+|---|---|---|
+| Frigate (nền VMS) | Cài & cấu hình | Camera, xem trực tiếp, ghi hình, xem lại, phát hiện người, vùng nguy hiểm, phân quyền |
+| Module AI an toàn | Nhóm tự làm | Thiếu mũ / áo phản quang, cháy / khói, người ngã; áp luật; đẩy sự cố vào Frigate |
+| Cảnh báo & thống kê | Nhóm tự làm | Telegram, bảng thống kê Streamlit |
+
+## Đọc trước khi code
+
+**[docs/data-contract.md](docs/data-contract.md)** — định dạng dữ liệu giữa các phần, đã chốt tuần 1.
+Nguồn sự thật trong code là [`safety/contracts.py`](safety/contracts.py).
+
+Tóm tắt:
+
+- AI → luật: `FrameResult` chứa các `Detection{track_id, cls, bbox, conf, keypoints}`
+- Luật → Frigate / Telegram / DB: `Incident{camera, label, sub_label, severity, score, ts, snapshot}`
+- Nhãn sự cố dùng chung với Frigate: `no_helmet`, `no_vest`, `fire`, `smoke`, `fall`
+
+## Cài môi trường
+
+Cần Python 3.12 (3.13+ chưa có bánh xe PyTorch CUDA ổn định), Git, và card NVIDIA nếu muốn chạy GPU.
+
+```powershell
+git clone https://github.com/<user>/safety-ai.git
+cd safety-ai
+py -3.12 -m venv .venv
+.venv\Scripts\activate
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+pip install -r requirements.txt
+```
+
+Kiểm tra GPU đã được nhận:
+
+```powershell
+python -c "import torch; print(torch.cuda.is_available(), torch.cuda.get_device_name(0))"
+```
+
+Phải ra `True` kèm tên card.
+
+Chạy thử webcam:
+
+```powershell
+yolo predict model=yolo26n.pt source=0 show=True device=0
+```
+
+Nếu báo `running scripts is disabled` khi activate venv:
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+
+## Cấu trúc
+
+```
+safety/          Module AI: contract dữ liệu, sau này thêm pipeline + luật
+docs/            Tài liệu chốt
+schemas/         DDL SQLite cho lịch sử sự cố
+frigate/         Config mẫu cho Frigate (copy thành config.yml, không commit)
+```
+
+## Phân công
+
+| Thành viên | Vai trò |
+|---|---|
+| Kỳ Đạt | Kiến trúc & Module AI — pipeline, tracking, luật, tích hợp Frigate API + MQTT, Docker Compose |
+| Nam Trường | Dữ liệu & mô hình — dataset, gán nhãn, train PPE + cháy, logic ngã (pose), TensorRT, đo độ chính xác |
+| Long Uy | Quản trị Frigate & cảnh báo — cài Frigate, Mosquitto, Telegram, Streamlit, video kiểm thử |
+
+## Lưu ý
+
+- Repo public: không commit `.env`, ảnh người lao động, hay `config.yml` có mật khẩu camera.
+- Hình ảnh người lao động là dữ liệu cá nhân theo Luật Bảo vệ dữ liệu cá nhân (hiệu lực 01/01/2026).
+- Hệ thống chỉ hỗ trợ, không thay thế hệ thống báo cháy đạt chuẩn PCCC.
+- Frigate: giấy phép MIT. Ultralytics YOLO: AGPL-3.0 — dùng cho đồ án thoải mái, thương mại hoá cần giấy phép riêng.
