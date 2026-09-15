@@ -24,7 +24,7 @@ Tóm tắt:
 Cần Python 3.12 (3.13+ chưa có bánh xe PyTorch CUDA ổn định), Git, và card NVIDIA nếu muốn chạy GPU.
 
 ```powershell
-git clone https://github.com/<user>/safety-ai.git
+git clone https://github.com/Justgivemeanaccount-1/safety-ai.git
 cd safety-ai
 py -3.12 -m venv .venv
 .venv\Scripts\activate
