@@ -2,6 +2,7 @@
 .env
 *.key
 *.pem
+*.crt
 frigate/config.yml
 
 # Môi trường Python
@@ -17,6 +18,7 @@ __pycache__/
 runs/
 
 # Dữ liệu & đầu ra
+data/
 datasets/
 snapshots/
 *.db

@@ -11,7 +11,7 @@ Ai cũng phải code theo đây: sai một tên field là hai người ghép kh�
 |---|---|---|
 | Thời gian | `ts` — epoch giây UTC, kiểu `float` | Frigate dùng epoch, khỏi lệch múi giờ. Trong file kế hoạch gọi là `time`. |
 | Toạ độ bbox | `[x1, y1, x2, y2]` pixel, gốc góc trên trái | Trùng định dạng `xyxy` của Ultralytics, không phải chuẩn hoá 0–1 |
-| Khung tham chiếu | Khung **đã resize để detect**, kèm `width`/`height` trong `FrameResult` | Ai cần chuẩn hoá tự chia, không đoán kích thước |
+| Khung tham chiếu | Đúng khung hình đưa vào pipeline; `width`/`height` trong `FrameResult` ghi lại kích thước khung đó | Ultralytics đã quy đổi bbox về kích thước ảnh đầu vào, nên hai thứ luôn cùng hệ. Ai cần chuẩn hoá thì chia cho `width`/`height`, đừng đoán |
 | `conf` / `score` | `float` 0.0–1.0 | |
 | Tên file | `snake_case`, không dấu tiếng Việt | Tránh lỗi đường dẫn trên Docker/Linux |
 

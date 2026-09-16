@@ -1,0 +1,18 @@
+# Máy chủ RTSP dùng để thử nghiệm khi chưa có Frigate hoặc camera IP thật.
+# Nó thay vai trò go2rtc của Frigate: nhận luồng ffmpeg đẩy lên rồi phát lại
+# cho module đọc, nên module dùng đúng một URL dù nguồn là gì.
+#
+# Chạy: mediamtx   (từ thư mục gốc repo, nó tự đọc file này)
+
+logLevel: info
+
+rtspAddress: :8554
+rtmp: no
+hls: no
+webrtc: no
+srt: no
+# Tắt MoQ, nếu không nó tự sinh chứng chỉ auto.crt/auto.key vào thư mục repo.
+moq: no
+
+paths:
+  all_others:

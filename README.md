@@ -52,13 +52,38 @@ Nếu báo `running scripts is disabled` khi activate venv:
 Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 ```
 
+## Chạy module
+
+Đọc một luồng và chạy tracking, in ra `FrameResult`:
+
+```powershell
+.venv\Scripts\python.exe -m safety.cli --source 0                      # webcam
+.venv\Scripts\python.exe -m safety.cli --source rtsp://localhost:8554/xuong_han_sub
+.venv\Scripts\python.exe -m safety.cli --source video.mp4 --json       # file, in JSON
+```
+
+Khi chưa có Frigate, tự dựng một luồng RTSP để thử (cần `mediamtx` và `ffmpeg` trên PATH):
+
+```powershell
+.\scripts\test-stream.ps1 -Video data\samples\webcam.mp4
+.\scripts\test-stream.ps1 -Stop
+```
+
+Khi Frigate của Uy chạy, chỉ đổi URL sang `rtsp://<frigate_host>:8554/<camera>_sub`, không phải sửa code.
+
 ## Cấu trúc
 
 ```
-safety/          Module AI: contract dữ liệu, sau này thêm pipeline + luật
+safety/          Module AI
+  contracts.py     Định dạng dữ liệu dùng chung
+  stream.py        Đọc luồng RTSP/webcam/file, tự kết nối lại, giới hạn FPS
+  pipeline.py      YOLO + tracking -> FrameResult
+  cli.py           Chạy thử
 docs/            Tài liệu chốt
 schemas/         DDL SQLite cho lịch sử sự cố
 frigate/         Config mẫu cho Frigate (copy thành config.yml, không commit)
+scripts/         Tiện ích dựng luồng RTSP thử nghiệm
+mediamtx.yml     Config máy chủ RTSP thử nghiệm
 ```
 
 ## Phân công
