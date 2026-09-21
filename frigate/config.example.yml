@@ -1,18 +1,74 @@
-# Copy thành frigate/config.yml rồi điền user/pass thật.
-# config.yml đã nằm trong .gitignore — repo này public, đừng commit mật khẩu camera.
+# Copy thành frigate/config.yml:   Copy-Item frigate\config.example.yml frigate\config.yml
+# config.yml nằm trong .gitignore và bị Frigate ghi đè khi sửa trên giao diện web.
+# Đổi gì lâu dài (camera, vùng) thì chép ngược vào file example này rồi commit.
+#
+# Mật khẩu camera KHÔNG ghi ở đây: để trong .env (FRIGATE_CAM_USER / FRIGATE_CAM_PASS),
+# Frigate tự thay vào chỗ {FRIGATE_...}. Repo này public.
+#
+# Viết cho Frigate 0.17.2 — tài liệu: https://docs.frigate.video (chọn đúng bản 0.17).
 
 mqtt:
+  enabled: true
   host: mosquitto
+
+# DB để trong volume Docker (xem docker-compose.yml), không để trong /config.
+database:
+  path: /db/frigate.db
+
+# CPU chỉ để thử. Máy có chip Intel/AMD thì đổi sang OpenVINO chạy trên CPU (nhanh
+# hơn nhiều, không cần tải model). NVIDIA xem docs/frigate-setup.md.
+detectors:
+  cpu1:
+    type: cpu
+# detectors:
+#   ov:
+#     type: openvino
+#     device: CPU
 
 go2rtc:
   streams:
-    xuong_han: rtsp://USER:PASS@192.168.1.64:554/Streams/Channels/101
-    xuong_han_sub: rtsp://USER:PASS@192.168.1.64:554/Streams/Channels/102
+    # --- Giả lập: luồng từ service rtsp-sim (tuần 1–7) ---
+    xuong_han: rtsp://rtsp-sim:8554/xuong_han
+    xuong_han_sub: rtsp://rtsp-sim:8554/xuong_han_sub
+
+    # --- Camera IP thật (tuần 8+): comment 2 dòng trên, mở 2 dòng dưới ---
+    # Hikvision: 101 = luồng chính, 102 = luồng phụ
+    # xuong_han: rtsp://{FRIGATE_CAM_USER}:{FRIGATE_CAM_PASS}@192.168.1.64:554/Streams/Channels/101
+    # xuong_han_sub: rtsp://{FRIGATE_CAM_USER}:{FRIGATE_CAM_PASS}@192.168.1.64:554/Streams/Channels/102
+    # Dahua: subtype=0 = luồng chính, subtype=1 = luồng phụ
+    # xuong_han: rtsp://{FRIGATE_CAM_USER}:{FRIGATE_CAM_PASS}@192.168.1.64:554/cam/realmonitor?channel=1&subtype=0
+    # xuong_han_sub: rtsp://{FRIGATE_CAM_USER}:{FRIGATE_CAM_PASS}@192.168.1.64:554/cam/realmonitor?channel=1&subtype=1
+    # Điện thoại dùng app IP Webcam (chỉ có 1 luồng, dùng chung cho cả 2):
+    # xuong_han: rtsp://192.168.1.50:8080/h264_ulaw.sdp
+    # xuong_han_sub: rtsp://192.168.1.50:8080/h264_ulaw.sdp
+
+# Ghi hình. Hình người lao động là dữ liệu cá nhân (Luật BVDLCN, hiệu lực 01/01/2026):
+# giữ ngắn nhất đủ dùng, và ghi rõ các con số này trong báo cáo.
+record:
+  enabled: true
+  continuous:
+    days: 1          # ghi liên tục, giữ 1 ngày
+  alerts:
+    retain:
+      days: 14       # đoạn có sự cố (người vào vùng nguy hiểm, sự cố module đẩy vào)
+      mode: motion
+  detections:
+    retain:
+      days: 3
+      mode: motion
+
+snapshots:
+  enabled: true
+  retain:
+    default: 14
 
 cameras:
+  # Tên camera là khoá nối Frigate – module – DB – dashboard (docs/data-contract.md mục 5).
+  # snake_case, không dấu. Module đọc rtsp://<frigate_host>:8554/xuong_han_sub.
   xuong_han:
     ffmpeg:
       inputs:
+        # Frigate đọc lại restream go2rtc của chính nó: camera chỉ bị kết nối 1 lần.
         - path: rtsp://127.0.0.1:8554/xuong_han
           input_args: preset-rtsp-restream
           roles: [record]
@@ -20,11 +76,27 @@ cameras:
           input_args: preset-rtsp-restream
           roles: [detect]
     detect:
-      fps: 5
-    record:
       enabled: true
+      fps: 5
+      # Bằng đúng kích thước luồng phụ. Bỏ trống thì Frigate mặc định 1280x720 và
+      # phóng to luồng 360p lên, tốn CPU mà không chính xác hơn.
+      width: 640
+      height: 360
+    objects:
+      track: [person]
     zones:
+      # Toạ độ tương đối 0–1 theo khung hình. Vẽ lại trên giao diện cho khớp video:
+      # Settings → Masks / Zones → xuong_han. Frigate xét vị trí bằng điểm giữa cạnh
+      # dưới bbox (chân người), nên vẽ vùng theo mặt sàn.
+      # Toạ độ dưới đây khớp video giả lập (lối đi giữa hai dãy kệ). Đổi camera
+      # thật thì vẽ lại.
       vung_nguy_hiem:
-        coordinates: 0.10,0.55,0.50,0.53,0.53,0.98,0.08,0.99
+        coordinates: 0.30,0.30,0.75,0.30,0.78,0.99,0.33,0.99
         objects: [person]
-        loitering_time: 2
+        inertia: 3          # phải thấy trong vùng 3 khung liên tiếp, tránh bbox nhảy
+        loitering_time: 2   # ở trong vùng ≥ 2 giây mới tính
+    review:
+      alerts:
+        # Người ở trong vùng nguy hiểm → Alert (module nghe frigate/reviews, lọc
+        # severity=alert). Người ở chỗ khác chỉ là Detection, không báo Telegram.
+        required_zones: [vung_nguy_hiem]

@@ -1,0 +1,74 @@
+# Frigate (nền VMS) + Mosquitto + camera giả lập.
+# Hướng dẫn chạy: docs/frigate-setup.md
+#
+#   docker compose up -d          # COMPOSE_PROFILES=sim trong .env thì có luôn rtsp-sim
+#   docker compose logs -f frigate
+#   docker compose down
+#
+# Tuần 8 Đạt thêm safety-module và dashboard vào file này. Chúng nằm chung mạng
+# Docker nên gọi thẳng frigate:5000, rtsp://frigate:8554, mosquitto:1883.
+
+name: safety-ai
+
+services:
+  frigate:
+    # Chốt một phiên bản cho cả nhóm, không tự nâng cấp giữa chừng (API có thể đổi).
+    image: ghcr.io/blakeblackshear/frigate:0.17.2
+    container_name: frigate
+    restart: unless-stopped
+    stop_grace_period: 30s
+    # Mỗi camera detect 640x360 cần ~7MB, cộng 40MB log. 256MB đủ cho 8 camera
+    # detect 720p (bài B4); cao hơn thì tính lại theo docs/frigate-setup.md.
+    shm_size: "256mb"
+    environment:
+      TZ: Asia/Ho_Chi_Minh
+      # Tài khoản camera IP thật, config.yml tham chiếu bằng {FRIGATE_CAM_USER}.
+      FRIGATE_CAM_USER: ${FRIGATE_CAM_USER:-}
+      FRIGATE_CAM_PASS: ${FRIGATE_CAM_PASS:-}
+    volumes:
+      - ./frigate:/config
+      # DB và ghi hình để trong volume Docker, không bind ra ổ Windows:
+      # SQLite trên bind mount của Docker Desktop hay bị "database is locked".
+      - frigate-db:/db
+      - frigate-media:/media/frigate
+      - type: tmpfs
+        target: /tmp/cache
+        tmpfs:
+          size: 1000000000
+    ports:
+      # Giao diện web có đăng nhập (HTTPS, chứng chỉ tự ký).
+      - "8971:8971"
+      # Restream cho module chạy trên máy host: rtsp://localhost:8554/<camera>_sub.
+      # Chỉ mở cho localhost vì luồng này không có mật khẩu mà lại có hình người lao động.
+      - "127.0.0.1:8554:8554"
+      # Cổng 5000 (API không đăng nhập) KHÔNG mở ra ngoài — xem docs/data-contract.md 3a.
+      # Khi Đạt cần gọi API từ host lúc phát triển thì mở tạm dòng dưới, chỉ localhost:
+      # - "127.0.0.1:5000:5000"
+    depends_on:
+      - mosquitto
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0.22
+    container_name: mosquitto
+    restart: unless-stopped
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    ports:
+      # Cho module chạy trên host nghe frigate/reviews. Chỉ localhost.
+      - "127.0.0.1:1883:1883"
+
+  # Camera giả lập: phát file video thành RTSP, thay camera IP khi chưa có.
+  # Cũng dùng để phát bộ video kiểm thử B1–B4.
+  rtsp-sim:
+    image: bluenviron/mediamtx:1.21.1-ffmpeg
+    container_name: rtsp-sim
+    restart: unless-stopped
+    profiles: [sim]
+    volumes:
+      - ./sim/mediamtx.yml:/mediamtx.yml:ro
+      - ./data/samples:/media:ro
+    # Không map cổng ra host: chỉ Frigate đọc, và để nhường 8554 cho restream của Frigate.
+
+volumes:
+  frigate-db:
+  frigate-media:
