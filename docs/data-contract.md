@@ -137,11 +137,22 @@ Các field module dùng từ payload của Frigate:
 
 | Field | Dùng làm gì |
 |---|---|
+| `type` | `new` / `update` / `end` — xem cảnh báo bên dưới |
+| `before.severity`, `after.severity` | bắt thời điểm chuyển **sang** `alert` |
 | `after.camera` | → `Incident.camera` |
-| `after.severity` | lọc `alert` / `detection` |
 | `after.data.zones` | chỉ xử lý khi có `vung_nguy_hiem` |
 | `after.start_time` | → `Incident.ts` |
-| `after.id` | → `Incident.frigate_event_id` |
+| `after.id` | → `Incident.frigate_event_id`, và là khoá chống gửi trùng |
+
+> **Alert không đến bằng tin `new`.** (Long Uy đo thực tế trên Frigate 0.17.)
+> Một review thường mở ra bằng tin `new` với `severity: detection`, rồi một tin `update`
+> sau đó mới nâng lên `alert` khi người đứng trong vùng đủ `loitering_time`.
+> Chỉ nghe tin `new` là **bỏ sót toàn bộ cảnh báo vùng nguy hiểm**.
+>
+> Luật đúng: kích hoạt khi `after.severity == "alert"` **và** `before.severity != "alert"`
+> (tức vừa chuyển sang alert; với tin `new` đã là `alert` ngay thì cũng tính).
+> Một review phát ra nhiều tin `update` liên tiếp, nên phải nhớ các `after.id` đã gửi
+> để mỗi review chỉ báo Telegram **một lần**.
 
 Quy đổi sang `Incident` với `label` = `IncidentLabel` tương ứng vùng nguy hiểm —
 vùng nguy hiểm **do Frigate lo**, module chỉ chuyển tiếp cảnh báo, không tự phát hiện.
