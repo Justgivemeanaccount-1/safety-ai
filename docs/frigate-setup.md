@@ -176,6 +176,9 @@ Kiểm tra trên giao diện: *Live* thấy hình; *Settings → Debug* bật *B
 | Ảnh snapshot | 14 ngày | `snapshots.retain` |
 
 Giữ ngắn vì hình người lao động là dữ liệu cá nhân — đưa bảng này vào báo cáo.
+
+Dung lượng: luồng chính 720p ~2 Mbps → ghi liên tục **~21,6 GB/ngày/camera** (đo thật trên
+đoạn ghi 10 giây). 8 camera × 1 ngày ≈ 170 GB — tính trước ổ đĩa khi làm bài B4.
 Kiểm tra: sau vài phút, mục *Review* và thanh thời gian trong *History* có đoạn ghi.
 
 ### 3. Vùng nguy hiểm `vung_nguy_hiem`

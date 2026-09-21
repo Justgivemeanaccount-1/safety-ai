@@ -15,12 +15,15 @@ webrtc: no
 srt: no
 
 paths:
-  # Luồng chính 720p. -g 25: keyframe mỗi ~1 giây để Frigate cắt đoạn ghi hình gọn.
+  # Luồng chính 720p, 2 Mbps như camera IP thật (không giới hạn thì ultrafast ra ~4,5 Mbps,
+  # ghi liên tục ~48 GB/ngày). -g 25: keyframe mỗi ~1 giây để Frigate cắt đoạn ghi hình gọn.
+  # -rtsp_transport tcp: đẩy luồng bằng TCP như restream của Frigate, tránh rơi gói UDP.
   xuong_han:
     runOnInit: >-
       ffmpeg -hide_banner -loglevel warning -re -stream_loop -1 -i /media/xuong_han.mp4
       -map 0:v:0 -vf scale=-2:720 -c:v libx264 -preset ultrafast -tune zerolatency -g 25
-      -f rtsp rtsp://localhost:$RTSP_PORT/$MTX_PATH
+      -b:v 2M -maxrate 2M -bufsize 4M
+      -f rtsp -rtsp_transport tcp rtsp://localhost:$RTSP_PORT/$MTX_PATH
     runOnInitRestart: yes
 
   # Luồng phụ 360p, 10 FPS — Frigate và module detect ở 5 FPS nên không cần hơn.
@@ -31,7 +34,8 @@ paths:
     runOnInit: >-
       ffmpeg -hide_banner -loglevel warning -rtsp_transport tcp -i rtsp://localhost:$RTSP_PORT/xuong_han
       -map 0:v:0 -vf scale=-2:360,fps=10 -c:v libx264 -preset ultrafast -tune zerolatency -g 10
-      -f rtsp rtsp://localhost:$RTSP_PORT/$MTX_PATH
+      -b:v 500k -maxrate 500k -bufsize 1M
+      -f rtsp -rtsp_transport tcp rtsp://localhost:$RTSP_PORT/$MTX_PATH
     runOnInitRestart: yes
 
   # Thêm camera giả lập (tuần 8, 4–8 camera): chép 2 path trên, đổi tên và file video,

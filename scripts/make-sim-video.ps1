@@ -34,7 +34,9 @@ $srcName = Split-Path $src -Leaf
 $outName = "$Name.mp4"
 if ($srcName -eq $outName) { throw "Source trung ten voi file ra ($outName). Doi ten file goc truoc." }
 
-$filters = @()
+# scale truoc vidstab: vidstabtransform ghi de len khung cua bo giai ma, cho thang
+# vao thi ra khung vo khoi (macroblock) o doan camera lia manh. scale tao khung moi.
+$filters = @("scale=-2:720")
 if ($Stabilize) {
     $filters += "vidstabtransform=tripod=1:input=/tmp/t.trf:optzoom=0:crop=black"
     $filters += "crop=iw*0.8:ih*0.8"
@@ -45,13 +47,16 @@ $vf = $filters -join ","
 
 $cmd = ""
 if ($Stabilize) {
-    $cmd += "ffmpeg -v error -i '/w/$srcName' -vf vidstabdetect=tripod=1:shakiness=8:result=/tmp/t.trf -f null - && "
+    $cmd += "ffmpeg -v error -i '/w/$srcName' -vf scale=-2:720,vidstabdetect=tripod=1:shakiness=8:result=/tmp/t.trf -f null - && "
 }
 $cmd += "ffmpeg -v error -y -i '/w/$srcName' -vf '$vf' -an -r 25 -c:v libx264 -preset veryfast -crf 23 -g 25 '/w/$outName'"
 
 # rtsp-sim dang mo thu muc nay thi Docker Desktop tren Windows hay bao
 # "No such file or directory" khi ghi de file -> dung no truoc.
-docker compose -f (Join-Path $repo "docker-compose.yml") stop rtsp-sim 2>$null | Out-Null
+# (docker in trang thai ra stderr; PowerShell 5.1 + "Stop" coi do la loi -> tam tat)
+$ErrorActionPreference = "Continue"
+docker compose -f (Join-Path $repo "docker-compose.yml") stop rtsp-sim 2>&1 | Out-Null
+$ErrorActionPreference = "Stop"
 
 Write-Host "Dang xu ly $srcName -> data\samples\$outName ..."
 docker run --rm --entrypoint sh -v "${samples}:/w" $image -c $cmd
