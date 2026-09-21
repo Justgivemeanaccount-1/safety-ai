@@ -1,0 +1,38 @@
+# Camera giả lập cho Frigate (service rtsp-sim trong docker-compose.yml).
+# Khác mediamtx.yml ở gốc repo: file kia chạy trên host cho module thử một mình,
+# file này chạy trong Docker và tự phát video, giống một camera IP có 2 luồng.
+#
+# Video lấy từ data/samples/ (thư mục đã gitignore, không commit video).
+# Mỗi camera cần 2 path: <camera> (luồng chính, để ghi hình) và <camera>_sub
+# (luồng phụ, để detect) — đúng như camera Hikvision/Dahua thật.
+
+logLevel: warn
+
+rtspAddress: :8554
+rtmp: no
+hls: no
+webrtc: no
+srt: no
+
+paths:
+  # Luồng chính 720p. -g 25: keyframe mỗi ~1 giây để Frigate cắt đoạn ghi hình gọn.
+  xuong_han:
+    runOnInit: >-
+      ffmpeg -hide_banner -loglevel warning -re -stream_loop -1 -i /media/xuong_han.mp4
+      -map 0:v:0 -vf scale=-2:720 -c:v libx264 -preset ultrafast -tune zerolatency -g 25
+      -f rtsp rtsp://localhost:$RTSP_PORT/$MTX_PATH
+    runOnInitRestart: yes
+
+  # Luồng phụ 360p, 10 FPS — Frigate và module detect ở 5 FPS nên không cần hơn.
+  # Lấy từ luồng chính thay vì đọc file lần nữa, để hai luồng luôn cùng một khoảnh
+  # khắc (quan trọng khi đo độ trễ B3 và đối chiếu ghi hình với sự cố của module).
+  # Lúc luồng chính chưa lên thì ffmpeg lỗi và runOnInitRestart tự chạy lại.
+  xuong_han_sub:
+    runOnInit: >-
+      ffmpeg -hide_banner -loglevel warning -rtsp_transport tcp -i rtsp://localhost:$RTSP_PORT/xuong_han
+      -map 0:v:0 -vf scale=-2:360,fps=10 -c:v libx264 -preset ultrafast -tune zerolatency -g 10
+      -f rtsp rtsp://localhost:$RTSP_PORT/$MTX_PATH
+    runOnInitRestart: yes
+
+  # Thêm camera giả lập (tuần 8, 4–8 camera): chép 2 path trên, đổi tên và file video,
+  # rồi khai camera tương ứng trong frigate/config.yml.

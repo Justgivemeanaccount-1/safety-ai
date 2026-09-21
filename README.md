@@ -71,6 +71,19 @@ Khi chưa có Frigate, tự dựng một luồng RTSP để thử (cần `mediam
 
 Khi Frigate của Uy chạy, chỉ đổi URL sang `rtsp://<frigate_host>:8554/<camera>_sub`, không phải sửa code.
 
+## Chạy Frigate
+
+Cần Docker Desktop (WSL2) và một video mẫu ở `data/samples/xuong_han.mp4`. Chi tiết: [docs/frigate-setup.md](docs/frigate-setup.md).
+
+```powershell
+Copy-Item .env.example .env
+Copy-Item frigate\config.example.yml frigate\config.yml
+docker compose up -d
+.\scripts\frigate-check.ps1
+```
+
+Giao diện: <https://localhost:8971>. Module đọc `rtsp://localhost:8554/xuong_han_sub`.
+
 ## Cấu trúc
 
 ```
@@ -82,8 +95,11 @@ safety/          Module AI
 docs/            Tài liệu chốt
 schemas/         DDL SQLite cho lịch sử sự cố
 frigate/         Config mẫu cho Frigate (copy thành config.yml, không commit)
-scripts/         Tiện ích dựng luồng RTSP thử nghiệm
-mediamtx.yml     Config máy chủ RTSP thử nghiệm
+sim/             Camera giả lập chạy trong Docker cho Frigate
+mosquitto/       Config broker MQTT
+scripts/         Dựng luồng RTSP thử nghiệm, kiểm tra Frigate
+mediamtx.yml     Config máy chủ RTSP thử nghiệm (chạy trên host, không cần Frigate)
+docker-compose.yml  Frigate + Mosquitto + camera giả lập
 ```
 
 ## Phân công

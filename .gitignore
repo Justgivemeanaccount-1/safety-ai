@@ -5,6 +5,10 @@
 *.crt
 frigate/config.yml
 
+# Frigate ghi nhiều file chạy vào /config (model_cache, backup...): chỉ commit file mẫu
+frigate/*
+!frigate/config.example.yml
+
 # Môi trường Python
 .venv/
 __pycache__/
