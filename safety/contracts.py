@@ -26,8 +26,10 @@ class DetectClass(str, Enum):
 class IncidentLabel(str, Enum):
     """Nhãn sự cố (luật -> Frigate / Telegram / DB).
 
-    Giá trị phải trùng đúng chữ với label khai trong Frigate, vì nó đi thẳng
-    vào URL POST /api/events/<camera>/<label>/create.
+    Nhãn do module phát hiện phải trùng đúng chữ với label khai trong Frigate,
+    vì nó đi thẳng vào URL POST /api/events/<camera>/<label>/create.
+    DANGER_ZONE ngược lại: Frigate tự sinh, module chỉ nhận qua MQTT rồi ghi DB
+    và gửi Telegram, không đẩy ngược vào Frigate.
     """
 
     NO_HELMET = "no_helmet"
@@ -35,6 +37,10 @@ class IncidentLabel(str, Enum):
     FIRE = "fire"
     SMOKE = "smoke"
     FALL = "fall"
+    DANGER_ZONE = "danger_zone"
+
+
+FRIGATE_ORIGIN_LABELS = frozenset({IncidentLabel.DANGER_ZONE})
 
 
 class Severity(str, Enum):
@@ -58,6 +64,7 @@ DEFAULT_SEVERITY: dict[IncidentLabel, Severity] = {
     IncidentLabel.FIRE: Severity.CRITICAL,
     IncidentLabel.SMOKE: Severity.HIGH,
     IncidentLabel.NO_HELMET: Severity.HIGH,
+    IncidentLabel.DANGER_ZONE: Severity.HIGH,
     IncidentLabel.NO_VEST: Severity.MEDIUM,
 }
 
@@ -229,6 +236,8 @@ class Incident:
 
     @property
     def frigate_path(self) -> str:
+        if self.label in FRIGATE_ORIGIN_LABELS:
+            raise ValueError(f"{self.label.value} do Frigate sinh ra, đẩy ngược vào sẽ thành sự cố trùng")
         return f"/events/{self.camera}/{self.label.value}/create"
 
     def to_frigate_payload(self, duration: int = 20) -> dict:

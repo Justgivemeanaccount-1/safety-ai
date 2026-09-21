@@ -1,6 +1,7 @@
 from safety.contracts import (
     COCO_KEYPOINTS,
     DEFAULT_SEVERITY,
+    FRIGATE_ORIGIN_LABELS,
     BBox,
     Detection,
     DetectClass,
@@ -14,6 +15,7 @@ from safety.contracts import (
 __all__ = [
     "COCO_KEYPOINTS",
     "DEFAULT_SEVERITY",
+    "FRIGATE_ORIGIN_LABELS",
     "BBox",
     "Detection",
     "DetectClass",

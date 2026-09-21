@@ -30,10 +30,15 @@ Hai nhóm nhãn khác nhau, đừng lẫn:
 
 **`IncidentLabel`** — sự cố sau khi qua luật:
 
-`no_helmet` · `no_vest` · `fire` · `smoke` · `fall`
+`no_helmet` · `no_vest` · `fire` · `smoke` · `fall` · `danger_zone`
 
-> Giá trị `IncidentLabel` đi thẳng vào URL `POST /api/events/<camera>/<label>/create`,
+> Năm nhãn đầu do **module** phát hiện và đi thẳng vào URL `POST /api/events/<camera>/<label>/create`,
 > nên **phải trùng đúng chữ** với label khai trong Frigate. Đổi ở đây là phải đổi cả config Frigate.
+>
+> `danger_zone` thì ngược lại: sự kiện do **Frigate** tự sinh (zone `vung_nguy_hiem`), module chỉ nhận
+> qua MQTT (mục 4) rồi ghi DB và gửi Telegram. Nó **không bao giờ** được đẩy ngược vào Frigate —
+> đẩy vào sẽ thành sự cố trùng. `Incident.frigate_path` báo lỗi nếu gọi với nhãn này.
+> Cần nhãn riêng để dashboard thống kê được loại sự cố thứ 4 của đồ án.
 
 **`Severity`**: `critical` (Nghiêm trọng) · `high` (Cao) · `medium` (Trung bình).
 Dùng mã ASCII trong DB/JSON, hiển thị tiếng Việt qua `Severity.vi`.
@@ -43,7 +48,7 @@ Mức mặc định mỗi loại (luật có thể nâng lên, xem `DEFAULT_SEVE
 | Sự cố | Mức mặc định |
 |---|---|
 | `fall`, `fire` | `critical` |
-| `smoke`, `no_helmet` | `high` |
+| `smoke`, `no_helmet`, `danger_zone` | `high` |
 | `no_vest` | `medium` |
 
 ## 2. AI → luật
@@ -154,7 +159,7 @@ Các field module dùng từ payload của Frigate:
 > Một review phát ra nhiều tin `update` liên tiếp, nên phải nhớ các `after.id` đã gửi
 > để mỗi review chỉ báo Telegram **một lần**.
 
-Quy đổi sang `Incident` với `label` = `IncidentLabel` tương ứng vùng nguy hiểm —
+Quy đổi sang `Incident` với `label=IncidentLabel.DANGER_ZONE` và `frigate_event_id=after.id` —
 vùng nguy hiểm **do Frigate lo**, module chỉ chuyển tiếp cảnh báo, không tự phát hiện.
 
 ## 5. Tên camera và vùng

@@ -17,7 +17,7 @@ Tóm tắt:
 
 - AI → luật: `FrameResult` chứa các `Detection{track_id, cls, bbox, conf, keypoints}`
 - Luật → Frigate / Telegram / DB: `Incident{camera, label, sub_label, severity, score, ts, snapshot}`
-- Nhãn sự cố dùng chung với Frigate: `no_helmet`, `no_vest`, `fire`, `smoke`, `fall`
+- Nhãn sự cố module đẩy vào Frigate: `no_helmet`, `no_vest`, `fire`, `smoke`, `fall`; riêng `danger_zone` do Frigate tự sinh, module chỉ chuyển tiếp
 
 ## Cài môi trường
 
