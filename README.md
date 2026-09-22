@@ -58,7 +58,7 @@ Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 
 ```powershell
 .venv\Scripts\python.exe -m safety.cli --source 0                      # webcam
-.venv\Scripts\python.exe -m safety.cli --source rtsp://localhost:8554/xuong_han_sub
+.venv\Scripts\python.exe -m safety.cli --source rtsp://127.0.0.1:8554/xuong_han_sub
 .venv\Scripts\python.exe -m safety.cli --source video.mp4 --json       # file, in JSON
 ```
 
@@ -82,7 +82,7 @@ docker compose up -d
 .\scripts\frigate-check.ps1
 ```
 
-Giao diện: <https://localhost:8971>. Module đọc `rtsp://localhost:8554/xuong_han_sub`.
+Giao diện: <https://localhost:8971>. Module đọc `rtsp://127.0.0.1:8554/xuong_han_sub`.
 
 ## Cấu trúc
 

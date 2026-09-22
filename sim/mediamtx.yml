@@ -23,7 +23,7 @@ paths:
       ffmpeg -hide_banner -loglevel warning -re -stream_loop -1 -i /media/xuong_han.mp4
       -map 0:v:0 -vf scale=-2:720 -c:v libx264 -preset ultrafast -tune zerolatency -g 25
       -b:v 2M -maxrate 2M -bufsize 4M
-      -f rtsp -rtsp_transport tcp rtsp://localhost:$RTSP_PORT/$MTX_PATH
+      -rtsp_transport tcp -f rtsp rtsp://localhost:$RTSP_PORT/$MTX_PATH
     runOnInitRestart: yes
 
   # Luồng phụ 360p, 10 FPS — Frigate và module detect ở 5 FPS nên không cần hơn.
@@ -35,7 +35,7 @@ paths:
       ffmpeg -hide_banner -loglevel warning -rtsp_transport tcp -i rtsp://localhost:$RTSP_PORT/xuong_han
       -map 0:v:0 -vf scale=-2:360,fps=10 -c:v libx264 -preset ultrafast -tune zerolatency -g 10
       -b:v 500k -maxrate 500k -bufsize 1M
-      -f rtsp -rtsp_transport tcp rtsp://localhost:$RTSP_PORT/$MTX_PATH
+      -rtsp_transport tcp -f rtsp rtsp://localhost:$RTSP_PORT/$MTX_PATH
     runOnInitRestart: yes
 
   # Thêm camera giả lập (tuần 8, 4–8 camera): chép 2 path trên, đổi tên và file video,

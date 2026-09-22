@@ -91,11 +91,23 @@ if ($v) {
 $tcp = New-Object Net.Sockets.TcpClient
 try {
     $tcp.Connect("127.0.0.1", 8554)
-    Ok "Cong 8554 mo tren localhost"
+    Ok "Cong 8554 mo tren 127.0.0.1"
 } catch {
-    Fail "Khong ket noi duoc localhost:8554. Co the scripts\test-stream.ps1 dang chiem cong, chay: .\scripts\test-stream.ps1 -Stop"
+    Fail "Khong ket noi duoc 127.0.0.1:8554. Co the scripts\test-stream.ps1 dang chiem cong, chay: .\scripts\test-stream.ps1 -Stop"
 } finally {
     $tcp.Close()
+}
+
+# 7. "localhost" tren Windows ra IPv6 (::1) truoc, ma Docker chi mo cong IPv4.
+# Module dung rtsp://localhost:... se treo ~30s moi lan ket noi roi khung lien tuc,
+# nen phai dung 127.0.0.1. Buoc 6 test bang 127.0.0.1 nen khong bat duoc loi nay.
+$v6 = New-Object Net.Sockets.TcpClient([Net.Sockets.AddressFamily]::InterNetworkV6)
+try {
+    $okV6 = $v6.ConnectAsync([Net.IPAddress]::IPv6Loopback, 8554).Wait(1000) -and $v6.Connected
+} catch { $okV6 = $false } finally { $v6.Close() }
+$localhostFirst = @([Net.Dns]::GetHostAddresses("localhost"))[0]
+if (-not $okV6 -and $localhostFirst.AddressFamily -eq "InterNetworkV6") {
+    Warn "localhost -> ::1 (IPv6) nhung cong 8554 chi mo IPv4: KHONG dung rtsp://localhost, dung rtsp://127.0.0.1"
 }
 
 Write-Host ""
@@ -105,4 +117,4 @@ if ($failed -gt 0) {
 }
 Write-Host "Frigate san sang. Giao dien: https://localhost:8971" -ForegroundColor Green
 Write-Host "Thu module (moc M1):"
-Write-Host "  .\.venv\Scripts\python.exe -m safety.cli --source rtsp://localhost:8554/${Camera}_sub"
+Write-Host "  .\.venv\Scripts\python.exe -m safety.cli --source rtsp://127.0.0.1:8554/${Camera}_sub"
