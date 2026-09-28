@@ -65,6 +65,10 @@ class PPERule:
     config: PPEConfig = field(default_factory=PPEConfig)
     _streaks: dict[tuple[int, IncidentLabel], _Streak] = field(default_factory=dict, init=False)
 
+    def streak_of(self, track_id: int, label: IncidentLabel) -> _Streak | None:
+        """Trạng thái đồng hồ đếm của một người, để hiển thị hoặc gỡ lỗi."""
+        return self._streaks.get((track_id, label))
+
     def update(self, frame: FrameResult) -> list[Incident]:
         incidents: list[Incident] = []
         for person in frame.detections:
