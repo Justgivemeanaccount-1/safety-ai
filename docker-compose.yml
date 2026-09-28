@@ -38,7 +38,7 @@ services:
     ports:
       # Giao diện web có đăng nhập (HTTPS, chứng chỉ tự ký).
       - "8971:8971"
-      # Restream cho module chạy trên máy host: rtsp://localhost:8554/<camera>_sub.
+      # Restream cho module chạy trên máy host: rtsp://127.0.0.1:8554/<camera>_sub.
       # Chỉ mở cho localhost vì luồng này không có mật khẩu mà lại có hình người lao động.
       - "127.0.0.1:8554:8554"
       # Cổng 5000 (API không đăng nhập) KHÔNG mở ra ngoài — xem docs/data-contract.md 3a.

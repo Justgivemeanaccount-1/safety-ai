@@ -18,7 +18,7 @@ data/samples/xuong_han.mp4
        ▼
 ┌──────────────────────────┐     ┌───────────┐
 │ frigate                  │────►│ mosquitto │  127.0.0.1:1883
-│  go2rtc restream  :8554 ─┼──► module trên host: rtsp://localhost:8554/xuong_han_sub
+│  go2rtc restream  :8554 ─┼──► module trên host: rtsp://127.0.0.1:8554/xuong_han_sub
 │  web + đăng nhập  :8971  │
 │  API nội bộ       :5000  │  (không mở ra host)
 └──────────────────────────┘
@@ -176,6 +176,9 @@ Kiểm tra trên giao diện: *Live* thấy hình; *Settings → Debug* bật *B
 | Ảnh snapshot | 14 ngày | `snapshots.retain` |
 
 Giữ ngắn vì hình người lao động là dữ liệu cá nhân — đưa bảng này vào báo cáo.
+
+Dung lượng: luồng chính 720p ~2 Mbps → ghi liên tục **~21,6 GB/ngày/camera** (đo thật trên
+đoạn ghi 10 giây). 8 camera × 1 ngày ≈ 170 GB — tính trước ổ đĩa khi làm bài B4.
 Kiểm tra: sau vài phút, mục *Review* và thanh thời gian trong *History* có đoạn ghi.
 
 ### 3. Vùng nguy hiểm `vung_nguy_hiem`
@@ -221,10 +224,16 @@ Nên module phải xét cả `update`, và nhớ `id` đã báo để không g�
 
 ```powershell
 .\scripts\frigate-check.ps1
-.\.venv\Scripts\python.exe -m safety.cli --source rtsp://localhost:8554/xuong_han_sub
+.\.venv\Scripts\python.exe -m safety.cli --source rtsp://127.0.0.1:8554/xuong_han_sub
 ```
 
-Module in ra `FrameResult` liên tục là đạt M1. Module chạy trên máy khác trong LAN thì
+Module in ra `FrameResult` liên tục là đạt M1 (Đạt đã chạy được trên máy Đạt).
+
+**Dùng `127.0.0.1`, không dùng `localhost`.** Trên Windows `localhost` ra IPv6 (`::1`) trước,
+mà Docker chỉ mở cổng 8554 cho IPv4 → module treo ~30 giây mỗi lần kết nối rồi khựng liên
+tục. `frigate-check` có cảnh báo riêng cho trường hợp này.
+
+Module chạy trên máy khác trong LAN thì
 đổi `127.0.0.1:8554:8554` thành `8554:8554` trong `docker-compose.yml` — nhớ là luồng này
 không có mật khẩu.
 
@@ -246,6 +255,8 @@ docker compose down -v               # dừng và XOÁ DB + ghi hình của Frig
 |---|---|
 | `port is already allocated` 8554 | `.\scripts\test-stream.ps1 -Stop` (mediamtx trên host đang chiếm cổng) |
 | Camera đen, `camera_fps=0` | `docker compose logs rtsp-sim` — thường do thiếu `data/samples/xuong_han.mp4` |
+| Module đọc luồng treo ~30 giây rồi khựng liên tục | Đang dùng `rtsp://localhost:...` → đổi thành `rtsp://127.0.0.1:...` (localhost ra IPv6) |
+| Log rtsp-sim báo `RTP packets lost`, ghi hình hỏng khung | ffmpeg đẩy luồng bằng UDP → phải có `-rtsp_transport tcp` trước `-f rtsp` trong `sim/mediamtx.yml` |
 | Có hình nhưng `detection_fps=0` | Video rung hoặc không có lúc vắng — xem Tuần 1 mục 2, chạy `make-sim-video.ps1` |
 | Có người vào vùng nhưng không có Alert | Người ở trong vùng < `loitering_time` — mở rộng vùng |
 | `frigate-check` báo không có camera | Config lỗi, Frigate chạy chế độ an toàn — `docker compose logs frigate \| Select-String Validation -Context 0,3` |
