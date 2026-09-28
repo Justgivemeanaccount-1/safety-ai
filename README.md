@@ -71,6 +71,18 @@ Khi chưa có Frigate, tự dựng một luồng RTSP để thử (cần `mediam
 
 Khi Frigate của Uy chạy, chỉ đổi URL sang `rtsp://<frigate_host>:8554/<camera>_sub`, không phải sửa code.
 
+Chạy kiểm thử luật sự cố (không cần camera hay model):
+
+```powershell
+.venv\Scripts\python.exe -m pytest tests -q
+```
+
+Đo độ ổn định mã định danh trên một luồng, phục vụ chỉnh tham số luật:
+
+```powershell
+.venv\Scripts\python.exe scripts\measure_tracks.py --seconds 180
+```
+
 ## Chạy Frigate
 
 Cần Docker Desktop (WSL2) và một video mẫu ở `data/samples/xuong_han.mp4`. Chi tiết: [docs/frigate-setup.md](docs/frigate-setup.md).

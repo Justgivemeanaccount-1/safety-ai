@@ -7,3 +7,6 @@ requests
 paho-mqtt
 streamlit
 python-dotenv
+
+# Chỉ dùng khi chạy kiểm thử
+pytest
