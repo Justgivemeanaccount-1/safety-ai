@@ -239,6 +239,67 @@ không có mật khẩu.
 
 ---
 
+## Sự cố đẩy qua API KHÔNG hiện ở Review
+
+Kế hoạch (Bước 5) viết rằng sự cố module đẩy vào Frigate sẽ hiện trong mục *Review* dưới
+dạng Alert. **Điều đó sai với Frigate 0.17.2.** Đạt phát hiện, Uy đã kiểm chứng lại:
+
+```
+POST /api/events/xuong_han/no_helmet/create
+{"sub_label":"ID 7 - khu han","score":0.87,"duration":20,"include_recording":true}
+→ {"success":true,"event_id":"1790948969.650282-spqyo8"}
+```
+
+Sau đó:
+
+| Kiểm tra | Kết quả |
+|---|---|
+| `GET /api/events/<id>` | Có, `data.type = "api"`, `has_clip = true`, `has_snapshot = true` |
+| Danh sách Events / trang **Explore** | Có |
+| Số mục trong `GET /api/review` | **Không đổi** (2 trước, 2 sau) |
+| `GET /api/review/<id>` | **404** |
+| MQTT `frigate/reviews` | **Không có tin nào** trong 45 giây |
+| MQTT `frigate/events` | Không có tin nào mang `id` này |
+
+Bỏ `required_zones` cũng vẫn vậy, nên không phải do cấu hình vùng.
+
+**Hệ quả cho báo cáo và thiết kế:** không hứa "mọi sự cố đều hiện chung ở mục Review".
+Sự cố của module xem ở **Explore**, còn đường cho người vận hành là **Telegram + bảng
+thống kê Streamlit**, mỗi dòng kèm link mở sự cố trong Frigate:
+
+```
+https://<frigate_host>:8971/explore?event_id=<event_id>
+```
+
+Lưu ý: Frigate 0.17 **không có** đường dẫn `/events` — giao diện chỉ có `/review` và
+`/explore`, và trang Explore đọc tham số `event_id` (xem `web/src/App.tsx`).
+
+## Tuần 3 — Mosquitto có mật khẩu
+
+Từ tuần 3 broker **không cho kết nối ẩn danh** nữa. Tài khoản nằm trong `.env`:
+
+```
+MQTT_USER=safety
+MQTT_PASS=<tự đặt, đừng để trống>
+```
+
+Cách hoạt động: `docker compose` đưa 2 biến này vào container Mosquitto, container tự
+tạo `/mosquitto/config/passwd` lúc khởi động, và đưa cùng tài khoản đó cho Frigate qua
+`{FRIGATE_MQTT_USER}` / `{FRIGATE_MQTT_PASSWORD}` trong `frigate/config.yml`. Repo không
+chứa mật khẩu lẫn file băm. Đổi mật khẩu = sửa `.env` rồi `docker compose up -d`.
+
+Thiếu `MQTT_USER`/`MQTT_PASS` thì `docker compose` dừng ngay và báo tên biến còn thiếu,
+thay vì chạy lên rồi im lặng không kết nối được.
+
+Kiểm tra (hoặc chạy `frigate-check.ps1`, đã có sẵn 2 bước này):
+
+```powershell
+docker exec mosquitto mosquitto_sub -t frigate/available -C 1 -W 3          # phải bị từ chối
+docker exec mosquitto mosquitto_sub -u safety -P '<mat khau>' -t frigate/available -C 1 -W 5   # phải ra "online"
+```
+
+Module chạy ngoài Docker thì dùng `MQTT_HOST=127.0.0.1` (xem lưu ý IPv6 ở mục M1).
+
 ## Lệnh hay dùng
 
 ```powershell
