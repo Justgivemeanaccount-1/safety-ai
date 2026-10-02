@@ -73,6 +73,13 @@ def draw(frame, result, rule, incidents, caption):
     return img
 
 
+def frames_of(args):
+    """Luồng trực tiếp thì đọc mãi; tệp video thì phát lại vài lượt."""
+    loops = 1 if "://" in str(args.source) else max(1, args.loops)
+    for _ in range(loops):
+        yield from FrameSource(args.source, target_fps=args.fps)
+
+
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--source", default="data/samples/xuong_han.mp4")
@@ -80,13 +87,16 @@ def main() -> int:
     p.add_argument("--model", default="yolo26n.pt")
     p.add_argument("--device", default="0")
     p.add_argument("--fps", type=float, default=5.0)
+    # Tep video chi dai 17 giay nen mot luot khong chac du 3 giay lien tuc.
+    # Phat lai vai luot cho luat du co hoi, giong luong RTSP that von lap vo han.
+    p.add_argument("--loops", type=int, default=4)
     args = p.parse_args()
 
     pipeline = SafetyPipeline(model=args.model, camera="xuong_han", device=args.device)
     rule = PPERule("xuong_han")
     shots = []
 
-    for ts, frame in FrameSource(args.source, target_fps=args.fps):
+    for ts, frame in frames_of(args):
         result = pipeline.process(ts, frame)
         people = [d for d in result.detections if d.cls is DetectClass.PERSON and d.track_id]
         result = FrameResult(

@@ -157,6 +157,11 @@ class FrameSource:
             return
         src_fps = cap.get(cv2.CAP_PROP_FPS) or self.target_fps
         step = max(1, round(src_fps / self.target_fps)) if self.target_fps > 0 else 1
+        # Mốc thời gian lấy theo thời gian TRONG video, không lấy đồng hồ máy.
+        # Đọc tệp thì tốc độ xử lý phụ thuộc máy đang bận hay rảnh; lấy đồng hồ máy
+        # sẽ làm luật tính theo thời gian ra kết quả khác nhau trên mỗi máy, và bộ
+        # video kiểm thử ở bài B1–B2 sẽ không đo lại được.
+        base = time.time()
         try:
             idx = 0
             while True:
@@ -164,7 +169,7 @@ class FrameSource:
                 if not ok:
                     return
                 if idx % step == 0:
-                    yield time.time(), frame
+                    yield base + idx / src_fps, frame
                 idx += 1
         finally:
             cap.release()
