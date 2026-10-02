@@ -25,6 +25,10 @@ services:
       # Tài khoản camera IP thật, config.yml tham chiếu bằng {FRIGATE_CAM_USER}.
       FRIGATE_CAM_USER: ${FRIGATE_CAM_USER:-}
       FRIGATE_CAM_PASS: ${FRIGATE_CAM_PASS:-}
+      # Tài khoản MQTT (dùng chung với module). Frigate chỉ thay được biến bắt đầu
+      # bằng FRIGATE_, nên lấy lại từ MQTT_USER/MQTT_PASS trong .env.
+      FRIGATE_MQTT_USER: ${MQTT_USER:?dat MQTT_USER trong .env}
+      FRIGATE_MQTT_PASSWORD: ${MQTT_PASS:?dat MQTT_PASS trong .env}
     volumes:
       - ./frigate:/config
       # DB và ghi hình để trong volume Docker, không bind ra ổ Windows:
@@ -51,6 +55,17 @@ services:
     image: eclipse-mosquitto:2.0.22
     container_name: mosquitto
     restart: unless-stopped
+    environment:
+      MQTT_USER: ${MQTT_USER:?dat MQTT_USER trong .env}
+      MQTT_PASS: ${MQTT_PASS:?dat MQTT_PASS trong .env}
+    # Tạo file mật khẩu từ .env ngay trước khi chạy broker: repo public nên không
+    # commit cả mật khẩu lẫn file băm. Đổi mật khẩu = sửa .env rồi restart.
+    # mosquitto_passwd chạy bằng root nên file ra chỉ root đọc được, còn broker chạy
+    # bằng tài khoản mosquitto -> phải đổi chủ sở hữu, không thì lỗi "Unable to open pwfile".
+    command: >-
+      sh -c "mosquitto_passwd -b -c /mosquitto/config/passwd \"$$MQTT_USER\" \"$$MQTT_PASS\"
+      && chown mosquitto:mosquitto /mosquitto/config/passwd
+      && exec mosquitto -c /mosquitto/config/mosquitto.conf"
     volumes:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
     ports:

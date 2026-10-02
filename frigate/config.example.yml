@@ -10,6 +10,9 @@
 mqtt:
   enabled: true
   host: mosquitto
+  # Tài khoản lấy từ .env (MQTT_USER / MQTT_PASS), docker-compose đưa vào đây.
+  user: "{FRIGATE_MQTT_USER}"
+  password: "{FRIGATE_MQTT_PASSWORD}"
 
 # DB để trong volume Docker (xem docker-compose.yml), không để trong /config.
 database:
