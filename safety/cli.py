@@ -30,7 +30,21 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--conf", type=float, default=0.25)
     p.add_argument("--max-frames", type=int, default=0, help="0 = chạy mãi")
     p.add_argument("--json", action="store_true", help="In FrameResult dạng JSON mỗi dòng")
+    p.add_argument("--show", action="store_true", help="Mở cửa sổ xem trực tiếp, nhấn Q để dừng sớm")
     return p
+
+
+def draw(frame, result):
+    import cv2
+
+    for d in result.detections:
+        x1, y1, x2, y2 = (int(v) for v in d.bbox.to_list())
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (76, 175, 80), 2)
+        text = f"{d.cls.value}#{d.track_id} {d.conf:.2f}"
+        cv2.putText(frame, text, (x1, max(14, y1 - 6)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, (76, 175, 80), 1, cv2.LINE_AA)
+    cv2.imshow("safety-ai", frame)
+    return cv2.waitKey(1) & 0xFF == ord("q")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -65,10 +79,17 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 print(_summarise(frames, result))
 
+            if args.show and draw(frame, result):
+                break
             if args.max_frames and frames >= args.max_frames:
                 break
     except KeyboardInterrupt:
         print()
+    finally:
+        if args.show:
+            import cv2
+
+            cv2.destroyAllWindows()
 
     elapsed = time.time() - started if frames else 0.0
     print(
