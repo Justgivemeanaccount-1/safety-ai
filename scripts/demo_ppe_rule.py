@@ -90,6 +90,8 @@ def main() -> int:
     # Tep video chi dai 17 giay nen mot luot khong chac du 3 giay lien tuc.
     # Phat lai vai luot cho luat du co hoi, giong luong RTSP that von lap vo han.
     p.add_argument("--loops", type=int, default=4)
+    p.add_argument("--show", action="store_true",
+                   help="Mở cửa sổ xem luật đếm giờ theo thời gian thực")
     args = p.parse_args()
 
     pipeline = SafetyPipeline(model=args.model, camera="xuong_han", device=args.device)
@@ -111,6 +113,14 @@ def main() -> int:
             if s and s.since:
                 longest = max(longest, result.ts - s.since)
 
+        if args.show:
+            live = draw(frame, result, rule, incidents,
+                        f"Luat PPE dang chay - dong ho dai nhat {longest:.1f}s / 3.0s")
+            cv2.imshow("safety-ai: luat PPE", live)
+            # Dừng lại 2 giây ở khung bắn ra sự cố để người xem kịp nhìn.
+            if cv2.waitKey(2000 if incidents else 1) & 0xFF == ord("q"):
+                break
+
         if incidents:
             shots.append(draw(frame, result, rule, incidents, "3. Du 3 giay -> luat ban ra su co"))
             break
@@ -118,6 +128,9 @@ def main() -> int:
             shots.append(draw(frame, result, rule, incidents, "1. Bat dau dem gio"))
         elif len(shots) == 1 and longest >= 2.2:
             shots.append(draw(frame, result, rule, incidents, "2. Sap du nguong, chua bao"))
+
+    if args.show:
+        cv2.destroyAllWindows()
 
     if len(shots) < 3:
         print(f"chi chup duoc {len(shots)}/3 khung — thu video dai hon")
