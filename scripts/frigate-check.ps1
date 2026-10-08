@@ -110,6 +110,36 @@ if (-not $okV6 -and $localhostFirst.AddressFamily -eq "InterNetworkV6") {
     Warn "localhost -> ::1 (IPv6) nhung cong 8554 chi mo IPv4: KHONG dung rtsp://localhost, dung rtsp://127.0.0.1"
 }
 
+# 8. MQTT: broker phai tu choi khach khong mat khau, va Frigate phai dang nhap duoc.
+$envFile = Join-Path $repo ".env"
+$creds = @{}
+if (Test-Path $envFile) {
+    Get-Content $envFile | Where-Object { $_ -match "^\s*(MQTT_USER|MQTT_PASS)\s*=" } | ForEach-Object {
+        $k, $v = $_ -split "=", 2
+        $creds[$k.Trim()] = $v.Trim()
+    }
+}
+if (-not $creds["MQTT_USER"] -or -not $creds["MQTT_PASS"]) {
+    Fail "Thieu MQTT_USER/MQTT_PASS trong .env (xem .env.example)"
+} else {
+    # Lenh day qua stdin cho "sh -s": mat khau khong nam tren dong lenh (khong lo
+    # trong danh sach tien trinh), va PowerShell 5.1 khong lam hong dau nhay.
+    # PowerShell 5.1 luon chen BOM vao dau luong stdin (doi $OutputEncoding hay
+    # [Console]::OutputEncoding deu khong bo duoc), lam sh doc dong dau thanh
+    # "<BOM>mosquitto_sub: not found". Cho dong dau la "#" de BOM roi vao do.
+    $anon = "#`nmosquitto_sub -t frigate/available -C 1 -W 3" | docker exec -i mosquitto sh -s 2>&1
+    if ($LASTEXITCODE -eq 0) { Fail "Broker van cho ket noi khong mat khau - kiem tra allow_anonymous" }
+    else { Ok "Broker tu choi ket noi khong mat khau" }
+
+    $cmd = "#`nmosquitto_sub -u '{0}' -P '{1}' -t frigate/available -C 1 -W 5" -f $creds["MQTT_USER"], $creds["MQTT_PASS"]
+    $msg = $cmd | docker exec -i mosquitto sh -s 2>&1
+    if ($LASTEXITCODE -eq 0 -and ($msg -join "") -match "online") {
+        Ok "Frigate dang online tren MQTT (dang nhap bang tai khoan trong .env)"
+    } else {
+        Fail "Khong nhan duoc frigate/available = online. Xem: docker compose logs frigate | Select-String MQTT"
+    }
+}
+
 Write-Host ""
 if ($failed -gt 0) {
     Write-Host "$failed muc loi." -ForegroundColor Red
