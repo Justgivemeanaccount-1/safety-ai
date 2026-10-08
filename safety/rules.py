@@ -9,6 +9,7 @@ Vì vậy luật đếm theo mốc thời gian có dung sai mất dấu, chứ k
 
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass, field
 
 from safety.contracts import (
@@ -144,3 +145,98 @@ class PPERule:
         for key, streak in list(self._streaks.items()):
             if streak.last_hit is not None and ts - streak.last_hit > limit:
                 del self._streaks[key]
+
+
+@dataclass(frozen=True)
+class ExcludeZone:
+    """Vùng bỏ qua, toạ độ tỉ lệ 0–1 giống cách Frigate khai vùng.
+
+    Dùng tỉ lệ chứ không dùng pixel để đổi độ phân giải camera vẫn đúng chỗ.
+    """
+
+    x1: float
+    y1: float
+    x2: float
+    y2: float
+    ten: str = ""
+
+    def to_bbox(self, width: int, height: int) -> BBox:
+        return BBox(self.x1 * width, self.y1 * height, self.x2 * width, self.y2 * height)
+
+
+@dataclass(frozen=True)
+class FireConfig:
+    window: int = 10
+    min_hits: int = 6
+    cooldown: float = 60.0
+    min_inside: float = 0.5
+    exclude: tuple[ExcludeZone, ...] = ()
+
+
+@dataclass
+class _Window:
+    hits: deque[float]
+    last_alert: float | None = None
+
+
+@dataclass
+class FireRule:
+    """Luật cháy và khói.
+
+    Khác luật đồ bảo hộ ở chỗ lửa không gắn với một người nào nên không đếm theo
+    mã định danh. Thay vào đó xét mật độ: phải thấy ở ít nhất 6 trong 10 khung gần
+    nhất mới tính. Lửa thật cháy liên tục nên dễ đạt, còn ánh đèn vàng loé lên hay
+    hơi nước bay qua chỉ xuất hiện vài khung rồi mất.
+
+    Vùng loại trừ dành cho những chỗ biết trước hay gây báo nhầm: đèn báo, cửa lò,
+    ống xả hơi nước.
+    """
+
+    camera: str
+    config: FireConfig = field(default_factory=FireConfig)
+    _windows: dict[IncidentLabel, _Window] = field(default_factory=dict, init=False)
+
+    def update(self, frame: FrameResult) -> list[Incident]:
+        incidents: list[Incident] = []
+        for label, cls in (
+            (IncidentLabel.FIRE, DetectClass.FIRE),
+            (IncidentLabel.SMOKE, DetectClass.SMOKE),
+        ):
+            best = 0.0
+            for d in frame.detections:
+                if d.cls is cls and not self._excluded(d, frame):
+                    best = max(best, d.conf)
+
+            window = self._windows.setdefault(
+                label, _Window(deque(maxlen=self.config.window))
+            )
+            window.hits.append(best)
+
+            seen = sum(1 for c in window.hits if c > 0)
+            if seen < self.config.min_hits:
+                continue
+            if (
+                window.last_alert is not None
+                and frame.ts - window.last_alert < self.config.cooldown
+            ):
+                continue
+
+            window.last_alert = frame.ts
+            incidents.append(
+                Incident(
+                    camera=self.camera,
+                    label=label,
+                    severity=DEFAULT_SEVERITY[label],
+                    score=max(window.hits),
+                    ts=frame.ts,
+                    sub_label=f"{seen}/{len(window.hits)} khung gần nhất",
+                )
+            )
+        return incidents
+
+    def _excluded(self, detection: Detection, frame: FrameResult) -> bool:
+        for zone in self.config.exclude:
+            box = zone.to_bbox(frame.width, frame.height)
+            if fraction_inside(detection.bbox, box) >= self.config.min_inside:
+                return True
+        return False
