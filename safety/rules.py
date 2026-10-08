@@ -196,6 +196,10 @@ class FireRule:
     config: FireConfig = field(default_factory=FireConfig)
     _windows: dict[IncidentLabel, _Window] = field(default_factory=dict, init=False)
 
+    def window_of(self, label: IncidentLabel) -> _Window | None:
+        """Trạng thái cửa sổ của một nhãn, để hiển thị hoặc gỡ lỗi."""
+        return self._windows.get(label)
+
     def update(self, frame: FrameResult) -> list[Incident]:
         incidents: list[Incident] = []
         for label, cls in (
