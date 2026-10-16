@@ -126,6 +126,16 @@ docker compose up -d
 
 Giao diện: <https://localhost:8971>. Module đọc `rtsp://127.0.0.1:8554/xuong_han_sub`.
 
+## Cảnh báo Telegram
+
+Nghe MQTT của Frigate, chuyển cảnh báo "người vào vùng nguy hiểm" sang Telegram và ghi DB.
+Cách tạo bot và lấy chat id: [docs/canh-bao-telegram.md](docs/canh-bao-telegram.md).
+
+```powershell
+.\.venv\Scripts\python.exe -m safety.mqtt_bridge --check   # kiểm tra token + MQTT
+.\.venv\Scripts\python.exe -m safety.mqtt_bridge           # chạy thật
+```
+
 ## Cấu trúc
 
 ```
