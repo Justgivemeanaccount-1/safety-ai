@@ -33,6 +33,18 @@ không đi qua cầu nối này.
 
 Token lộ thì vào BotFather gửi `/revoke` để cấp token mới.
 
+**Dùng chung một bot cho cả nhóm:** cảnh báo nên đổ vào **nhóm** chứ không phải chat riêng,
+nếu không ai cầm chat id thì chỉ người đó nhận được. Nhóm của nhóm đồ án:
+*Canh bao an toan - Nhom do an* (chat id âm, bắt đầu bằng `-`).
+
+Hai lưu ý khi lấy chat id của nhóm:
+
+* Bot trong nhóm **không nhận được tin thường** (privacy mode). Muốn nhóm hiện ra trong
+  `getUpdates` thì gửi một lệnh có đuôi tên bot, ví dụ `/start@safety_ai_xuonghan_bot`.
+* Nhóm thường nâng lên *supergroup* (khi thêm nhiều người, bật lịch sử công khai...) là
+  **chat id đổi** sang dạng `-100...`. Lúc đó phải lấy lại chat id và sửa `.env`, nếu không
+  cảnh báo im lặng biến mất.
+
 ## 2. Chạy
 
 ```powershell
