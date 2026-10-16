@@ -36,3 +36,6 @@ snapshots/
 .idea/
 Thumbs.db
 desktop.ini
+
+# File docker compose de tren may ca nhan
+docker-compose.override.yml

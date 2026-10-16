@@ -43,6 +43,12 @@ Token lộ thì vào BotFather gửi `/revoke` để cấp token mới.
 Khi có người đứng trong `vung_nguy_hiem` đủ `loitering_time`, Frigate nâng review lên
 `alert`, cầu nối gửi một tin Telegram và ghi một dòng vào bảng `incidents`.
 
+Đã chạy thật trên máy Uy (16/10): một cảnh báo `danger_zone` gửi kèm ảnh, một dòng trong
+`incidents`, và trong 5 phút sau đó không có tin trùng dù Frigate vẫn phát tiếp tin `update`.
+
+`MQTT_HOST` phải là `127.0.0.1` khi chạy ngoài Docker — để `mosquitto` thì module báo
+`getaddrinfo failed`, vì đó là tên chỉ có trong mạng Docker.
+
 Nội dung tin theo hợp đồng mục 3c: mức độ tiếng Việt, loại sự cố, camera, giờ địa phương,
 độ tin cậy, ảnh, kèm link `.../explore?event_id=<id>`.
 
@@ -62,9 +68,22 @@ Nội dung tin theo hợp đồng mục 3c: mức độ tiếng Việt, loại s
 ## 4. Ảnh kèm theo tin
 
 Cầu nối tải ảnh từ `FRIGATE_API` (`/events/<id>/snapshot.jpg`). Chạy **ngoài Docker** thì
-cổng 5000 không mở, nên không có ảnh — cảnh báo vẫn gửi dạng chữ, chỉ thiếu ảnh. Muốn có
-ảnh lúc phát triển thì mở dòng `127.0.0.1:5000:5000` trong `docker-compose.yml`. Khi module
+cổng 5000 không mở, nên không có ảnh — cảnh báo vẫn gửi dạng chữ, chỉ thiếu ảnh. Khi module
 chạy trong Docker (tuần 8) thì dùng `FRIGATE_API=http://frigate:5000/api` và luôn có ảnh.
+
+Muốn thử có ảnh ngay trên máy mình thì tạo `docker-compose.override.yml` (đã gitignore,
+không ảnh hưởng cấu hình chung của nhóm):
+
+```yaml
+services:
+  frigate:
+    ports:
+      - "8971:8971"
+      - "127.0.0.1:8554:8554"
+      - "127.0.0.1:5050:5000"   # 5000 trên máy Uy đã bị tiến trình khác chiếm
+```
+
+rồi đặt `FRIGATE_API=http://127.0.0.1:5050/api` trong `.env` và `docker compose up -d frigate`.
 
 ## 5. Tài khoản xem trên Frigate (tuần 4)
 
