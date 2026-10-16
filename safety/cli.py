@@ -1,7 +1,11 @@
-"""Chạy thử pipeline trên một luồng: python -m safety.cli --source 0
+"""Chạy module trên một luồng: python -m safety.cli --source 0
 
-Mục đích là kiểm chứng module đọc được luồng và tracking giữ được track_id.
-Phần luật sự cố nằm ở bước sau, chưa nối vào đây.
+Mỗi khung đi qua nhận diện + tracking, rồi qua luật đồ bảo hộ và luật cháy/khói.
+Sự cố được chụp ảnh vào thư mục snapshots/, và nếu có --frigate thì đẩy sang
+Frigate để xem lại kèm đoạn ghi hình:
+
+    python -m safety.cli --source rtsp://127.0.0.1:8554/xuong_han_sub \\
+        --camera xuong_han --frigate http://127.0.0.1:5000/api
 """
 
 from __future__ import annotations
@@ -11,9 +15,13 @@ import json
 import logging
 import time
 
-from safety.contracts import FrameResult
+from safety.contracts import FrameResult, Incident
+from safety.frigate import FrigateClient, FrigatePublisher
+from safety.incidents import IncidentProcessor
 from safety.pipeline import SafetyPipeline
 from safety.stream import DEFAULT_FPS, FrameSource
+
+log = logging.getLogger("safety.cli")
 
 
 def parse_source(value: str) -> str | int:
@@ -21,7 +29,7 @@ def parse_source(value: str) -> str | int:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="Đọc luồng + tracking, in ra FrameResult")
+    p = argparse.ArgumentParser(description="Đọc luồng + tracking + luật, đẩy sự cố sang Frigate")
     p.add_argument("--source", default="0", help="RTSP URL, đường dẫn file, hoặc số hiệu webcam")
     p.add_argument("--camera", default="xuong_han", help="Tên camera, phải trùng tên trong Frigate")
     p.add_argument("--model", default="yolo26n.pt")
@@ -31,7 +39,30 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--max-frames", type=int, default=0, help="0 = chạy mãi")
     p.add_argument("--json", action="store_true", help="In FrameResult dạng JSON mỗi dòng")
     p.add_argument("--show", action="store_true", help="Mở cửa sổ xem trực tiếp, nhấn Q để dừng sớm")
+    p.add_argument("--frigate", default=None,
+                   help="Địa chỉ API Frigate, vd http://127.0.0.1:5000/api. Bỏ trống = không gửi")
+    p.add_argument("--snapshots", default="snapshots", help="Thư mục lưu ảnh sự cố")
     return p
+
+
+def build_publisher(api: str | None, camera: str) -> FrigatePublisher | None:
+    if not api:
+        log.info("Không có --frigate: sự cố chỉ in ra màn hình và lưu ảnh, không gửi Frigate")
+        return None
+    client = FrigateClient(api)
+    cameras = client.cameras()
+    if cameras is None:
+        log.warning("Chưa gọi được Frigate; vẫn chạy, sự cố sẽ được thử gửi lại khi có")
+    elif camera not in cameras:
+        # Sai tên camera thì Frigate từ chối mọi sự cố, nên báo ngay từ đầu.
+        log.error("Frigate không có camera '%s' (đang có: %s)", camera, ", ".join(sorted(cameras)))
+    return FrigatePublisher(client, on_done=_report_sent)
+
+
+def _report_sent(incident: Incident) -> None:
+    if incident.frigate_event_id:
+        log.info("Đã tạo sự cố trong Frigate: %s  (xem ở Explore: /explore?event_id=%s)",
+                 incident.frigate_event_id, incident.frigate_event_id)
 
 
 def draw(frame, result):
@@ -58,9 +89,12 @@ def main(argv: list[str] | None = None) -> int:
         conf=args.conf,
     )
     source = FrameSource(parse_source(args.source), target_fps=args.fps)
+    publisher = build_publisher(args.frigate, args.camera)
+    processor = IncidentProcessor(args.camera, publisher=publisher, snapshot_dir=args.snapshots)
 
     seen_tracks: set[int] = set()
     frames = 0
+    incidents = 0
     started = 0.0
     infer_total = 0.0
 
@@ -79,6 +113,12 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 print(_summarise(frames, result))
 
+            for incident in processor.handle(frame, result):
+                incidents += 1
+                log.warning("SỰ CỐ %s [%s] %s score %.2f, ảnh %s", incident.label.value,
+                            incident.severity.vi, incident.sub_label or "", incident.score,
+                            incident.snapshot)
+
             if args.show and draw(frame, result):
                 break
             if args.max_frames and frames >= args.max_frames:
@@ -90,6 +130,8 @@ def main(argv: list[str] | None = None) -> int:
             import cv2
 
             cv2.destroyAllWindows()
+        if publisher is not None:
+            publisher.close()
 
     elapsed = time.time() - started if frames else 0.0
     print(
@@ -98,6 +140,10 @@ def main(argv: list[str] | None = None) -> int:
         f"suy luận {1000 * infer_total / frames if frames else 0:.0f}ms/khung, "
         f"{len(seen_tracks)} track_id khác nhau: {sorted(seen_tracks)}"
     )
+    print(f"{incidents} sự cố" + (
+        f", gửi Frigate: {publisher.sent} thành công, {publisher.failed} lỗi, "
+        f"{publisher.dropped} bỏ do hàng đợi đầy, {publisher.unsent} chưa gửi kịp lúc dừng"
+        if publisher is not None else ""))
     return 0
 
 
