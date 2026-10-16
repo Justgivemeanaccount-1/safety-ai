@@ -12,14 +12,13 @@ bị trễ hoặc bỏ, không bao giờ làm khựng camera.
 from __future__ import annotations
 
 import logging
-import queue
-import threading
 import time
 from collections.abc import Callable
 
 import requests
 
 from safety.contracts import Incident
+from safety.worker import QueueWorker
 
 log = logging.getLogger(__name__)
 
@@ -106,15 +105,14 @@ class FrigateClient:
         return None
 
 
-_STOP = object()
+class FrigatePublisher(QueueWorker):
+    """Gửi sự cố sang Frigate ở luồng nền; gửi xong gán mã sự cố Frigate trả về.
 
-
-class FrigatePublisher:
-    """Hàng đợi và luồng nền gửi sự cố sang Frigate.
-
-    `submit` không bao giờ chặn: hàng đợi đầy (Frigate sập lâu) thì bỏ sự cố mới và
-    đếm vào `dropped`, chứ không bắt vòng lặp camera phải chờ.
+    `on_done` được gọi cả khi Frigate lỗi (lúc đó `frigate_event_id` là None), để các
+    bước sau như Telegram vẫn báo được dù Frigate đang sập.
     """
+
+    what = "Frigate"
 
     def __init__(
         self,
@@ -123,59 +121,8 @@ class FrigatePublisher:
         on_done: Callable[[Incident], None] | None = None,
     ):
         self.client = client
-        self.on_done = on_done
-        self.sent = 0
-        self.failed = 0
-        self.dropped = 0
-        self.unsent = 0
-        self._queue: queue.Queue = queue.Queue(maxsize)
-        self._thread = threading.Thread(target=self._run, name="frigate-publisher", daemon=True)
-        self._thread.start()
+        super().__init__(maxsize=maxsize, on_done=on_done)
 
-    def submit(self, incident: Incident) -> bool:
-        try:
-            self._queue.put_nowait(incident)
-            return True
-        except queue.Full:
-            self.dropped += 1
-            log.error("Hàng đợi gửi Frigate đầy, bỏ sự cố %s/%s",
-                      incident.camera, incident.label.value)
-            return False
-
-    def close(self, timeout: float = 10.0) -> bool:
-        """Gửi nốt các sự cố đang chờ rồi dừng. Trả về False nếu hết giờ mà chưa xong.
-
-        Hết giờ thì số sự cố bị bỏ dở được ghi vào `unsent` và báo lỗi, để chúng không
-        biến mất lặng lẽ (Frigate sập thì mỗi sự cố mất vài giây thử lại).
-        """
-        deadline = time.monotonic() + timeout
-        stop_queued = True
-        try:
-            self._queue.put(_STOP, timeout=timeout)
-        except queue.Full:
-            stop_queued = False
-        self._thread.join(max(0.0, deadline - time.monotonic()))
-        if not self._thread.is_alive():
-            return True
-        # Sự cố đang gửi dở + những sự cố còn trong hàng đợi, không tính dấu dừng.
-        self.unsent = 1 + self._queue.qsize() - (1 if stop_queued else 0)
-        log.error("Dừng khi còn %d sự cố chưa gửi được sang Frigate", self.unsent)
-        return False
-
-    def _run(self) -> None:
-        while True:
-            incident = self._queue.get()
-            if incident is _STOP:
-                return
-            try:
-                incident.frigate_event_id = self.client.create_event(incident)
-                if incident.frigate_event_id:
-                    self.sent += 1
-                else:
-                    self.failed += 1
-                if self.on_done is not None:
-                    self.on_done(incident)
-            except Exception:
-                # Luồng này chết thì từ đó về sau không sự cố nào tới được Frigate nữa.
-                self.failed += 1
-                log.exception("Lỗi không lường trước khi gửi sự cố sang Frigate")
+    def _handle(self, incident: Incident) -> bool:
+        incident.frigate_event_id = self.client.create_event(incident)
+        return incident.frigate_event_id is not None

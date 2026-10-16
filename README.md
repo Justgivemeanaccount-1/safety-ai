@@ -95,10 +95,20 @@ docker compose up -d
 ```
 
 `--camera` phải trùng tên camera trong Frigate, sai thì module báo lỗi ngay lúc khởi động.
-Chưa có model PPE/cháy thì chạy thử cả đường đi bằng nhãn giả lập:
+
+Thêm `--telegram` để gửi tiếp vào nhóm Telegram chung, cùng bot và cùng kiểu tin với
+cảnh báo vùng nguy hiểm. Mã bot và chat id lấy từ `.env` (`TELEGRAM_BOT_TOKEN`,
+`TELEGRAM_CHAT_ID`, xem [docs/canh-bao-telegram.md](docs/canh-bao-telegram.md)).
+Sự cố tới Frigate trước rồi mới sang Telegram, để tin nhắn kèm đường dẫn mở sự cố;
+Frigate sập thì Telegram vẫn báo, chỉ là không có đường dẫn. Hai bên gửi ở hai luồng
+riêng nên Telegram chậm không làm sự cố tới Frigate muộn.
+
+Chưa có model PPE/cháy thì chạy thử cả đường đi bằng nhãn giả lập. Sự cố giả lập ghi rõ
+"GIẢ LẬP" trong mô tả; với `--telegram` mỗi lần chạy chỉ gửi tối đa 2 tin để không làm ngập nhóm:
 
 ```powershell
 .venv\Scripts\python.exe scripts\demo_incident_flow.py --seconds 40
+.venv\Scripts\python.exe scripts\demo_incident_flow.py --seconds 25 --telegram
 ```
 
 Chạy kiểm thử luật sự cố (không cần camera hay model):

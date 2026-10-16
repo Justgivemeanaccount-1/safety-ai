@@ -9,7 +9,12 @@ chụp ảnh, gửi Frigate ở luồng nền. Cuối cùng hỏi lại Frigate 
 nằm trong đó và có đoạn ghi hình không.
 
 Phần giả lập chỉ nằm trong script này, không lọt vào safety/. Model nào đã có lớp
-no_helmet hay fire thì script tự bỏ phần giả lập tương ứng.
+no_helmet hay fire thì script tự bỏ phần giả lập tương ứng. Sự cố giả lập được ghi
+rõ "GIẢ LẬP" trong mô tả, cả trong Frigate lẫn tin Telegram.
+
+Thêm --telegram để gửi tiếp vào nhóm Telegram chung, mặc định tối đa 2 tin:
+
+    python scripts/demo_incident_flow.py --seconds 25 --telegram
 """
 
 from __future__ import annotations
@@ -28,8 +33,9 @@ from demo_fire_rule import FIRE_AT, box_of
 from demo_ppe_rule import fake_no_helmet
 
 from safety.contracts import Detection, DetectClass, FrameResult, Incident
-from safety.frigate import FrigateClient, FrigatePublisher
+from safety.frigate import FrigateClient
 from safety.incidents import IncidentProcessor
+from safety.outputs import build_outputs
 from safety.pipeline import SafetyPipeline
 from safety.stream import FrameSource
 
@@ -47,6 +53,32 @@ def inject(result: FrameResult, fake_ppe: bool, fake_fire: bool) -> FrameResult:
         return result
     return FrameResult(result.camera, result.ts, result.width, result.height,
                        tuple(result.detections) + tuple(extra))
+
+
+class MarkSimulated:
+    """Ghi "GIẢ LẬP" vào mô tả sự cố trước khi gửi đi, để Frigate và nhóm Telegram
+    không ai nhầm sự cố thử với sự cố thật."""
+
+    def __init__(self, outputs, active: bool):
+        self.outputs = outputs
+        self.active = active
+
+    def submit(self, incident: Incident) -> bool:
+        if self.active:
+            incident.sub_label = f"GIẢ LẬP - {incident.sub_label or ''}".rstrip(" -")
+        return self.outputs.submit(incident)
+
+
+def at_most(n: int):
+    """Chỉ cho n sự cố đầu tiên đi Telegram, để chạy thử không làm ngập nhóm chung."""
+    count = 0
+
+    def allow(_incident: Incident) -> bool:
+        nonlocal count
+        count += 1
+        return count <= n
+
+    return allow
 
 
 def verify(api: str, incidents: list[Incident]) -> int:
@@ -82,6 +114,10 @@ def main() -> int:
     p.add_argument("--fps", type=float, default=5.0)
     p.add_argument("--seconds", type=float, default=40.0)
     p.add_argument("--snapshots", default="snapshots")
+    p.add_argument("--telegram", action="store_true",
+                   help="Gui tiep vao nhom Telegram chung (ma bot trong .env). Tin ghi ro GIA LAP")
+    p.add_argument("--telegram-max", type=int, default=2,
+                   help="Gui toi da bao nhieu tin Telegram moi lan chay thu, de khong lam ngap nhom")
     p.add_argument("--verify-wait", type=float, default=30.0,
                    help="Cho Frigate dong su co (duration 20s) va ghi xong doan video roi moi kiem")
     args = p.parse_args()
@@ -93,8 +129,7 @@ def main() -> int:
     fake_fire = DetectClass.FIRE not in have
     print(f"gia lap: khong mu={'CO' if fake_ppe else 'khong'}, lua={'CO' if fake_fire else 'khong'}")
 
-    client = FrigateClient(args.frigate)
-    cameras = client.cameras()
+    cameras = FrigateClient(args.frigate).cameras()
     if cameras is None:
         # Giống safety.cli: Frigate tắt thì vẫn chạy, để thử luôn trường hợp Frigate sập.
         print(f"KHONG goi duoc Frigate o {args.frigate}, van chay tiep")
@@ -102,9 +137,10 @@ def main() -> int:
         print(f"Frigate khong co camera {args.camera} (dang co: {sorted(cameras)})")
         return 1
 
-    sent: list[Incident] = []
-    publisher = FrigatePublisher(client, on_done=sent.append)
-    processor = IncidentProcessor(args.camera, publisher=publisher, snapshot_dir=args.snapshots)
+    outputs = build_outputs(args.frigate, args.camera, telegram=args.telegram,
+                            telegram_when=at_most(args.telegram_max))
+    marked = MarkSimulated(outputs, active=fake_ppe or fake_fire)
+    processor = IncidentProcessor(args.camera, publisher=marked, snapshot_dir=args.snapshots)
 
     found: list[Incident] = []
     frames, slowest_handle = 0, 0.0
@@ -122,16 +158,16 @@ def main() -> int:
             break
 
     loop_seconds = time.time() - (deadline - args.seconds)
-    publisher.close()
+    outputs.close()
     print(f"\n{frames} khung trong {loop_seconds:.1f}s ({frames / loop_seconds:.1f} khung/giay), "
-          f"{len(found)} su co; gui Frigate: {publisher.sent} thanh cong, {publisher.failed} loi, "
-          f"{publisher.dropped} bo do hang doi day, {publisher.unsent} chua gui kip luc dung")
+          f"{len(found)} su co")
+    print(outputs.summary())
     print(f"buoc luat+chup anh+dua vao hang doi cham nhat: {1000 * slowest_handle:.1f} ms/khung")
 
     print(f"\ncho {args.verify_wait:.0f}s de Frigate dong su co va ghi xong doan video...")
     time.sleep(args.verify_wait)
     print("Kiem tra lai trong Frigate:")
-    ok = verify(args.frigate, sent)
+    ok = verify(args.frigate, found)
     print(f"\n{ok}/{len(found)} su co nam trong Frigate kem doan ghi hinh")
     return 0 if found and ok == len(found) else 1
 
