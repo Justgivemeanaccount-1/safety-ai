@@ -243,7 +243,8 @@ def main() -> int:
         if code is None:
             log.error("Không nhận được phản hồi từ MQTT %s:%s sau 5 giây", host, port)
             return 1
-        if int(code) != 0:
+        # paho 2.x tra ve ReasonCode chu khong phai so; no so sanh duoc voi 0.
+        if code != 0:
             log.error("MQTT %s:%s từ chối: %s (kiểm tra MQTT_USER/MQTT_PASS)", host, port, code)
             return 1
         log.info("Kết nối MQTT %s:%s và Telegram đều tốt", host, port)
