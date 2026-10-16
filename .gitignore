@@ -36,3 +36,6 @@ snapshots/
 .idea/
 Thumbs.db
 desktop.ini
+
+# Cau hinh Docker rieng tung may (vd mo tam cong 5000 khi phat trien)
+docker-compose.override.yml

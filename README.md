@@ -71,6 +71,36 @@ Khi chưa có Frigate, tự dựng một luồng RTSP để thử (cần `mediam
 
 Khi Frigate của Uy chạy, chỉ đổi URL sang `rtsp://<frigate_host>:8554/<camera>_sub`, không phải sửa code.
 
+### Đẩy sự cố sang Frigate
+
+Mỗi khung đi qua luật đồ bảo hộ và luật cháy/khói; sự cố được chụp ảnh vào `snapshots/`
+(không lên repo) và, nếu có `--frigate`, tạo thành sự cố trong Frigate kèm đoạn ghi hình 25 giây,
+xem ở mục **Explore**. Sự cố tạo qua API **không** hiện ở mục Review.
+
+Module chạy trên máy host cần gọi API cổng 5000 của Frigate. Cổng này không đăng nhập nên
+`docker-compose.yml` cố ý không mở; khi phát triển thì mở tạm, chỉ cho localhost, bằng một
+file riêng trên máy mình (đã có trong `.gitignore`, Docker Compose tự đọc kèm):
+
+```yaml
+# docker-compose.override.yml
+services:
+  frigate:
+    ports:
+      - "127.0.0.1:5000:5000"
+```
+
+```powershell
+docker compose up -d
+.venv\Scripts\python.exe -m safety.cli --source rtsp://127.0.0.1:8554/xuong_han_sub --camera xuong_han --frigate http://127.0.0.1:5000/api
+```
+
+`--camera` phải trùng tên camera trong Frigate, sai thì module báo lỗi ngay lúc khởi động.
+Chưa có model PPE/cháy thì chạy thử cả đường đi bằng nhãn giả lập:
+
+```powershell
+.venv\Scripts\python.exe scripts\demo_incident_flow.py --seconds 40
+```
+
 Chạy kiểm thử luật sự cố (không cần camera hay model):
 
 ```powershell
