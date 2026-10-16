@@ -51,28 +51,31 @@ class SafetyPipeline:
         camera: str,
         device: str | int = 0,
         conf: float = 0.25,
-        imgsz: int = 640,
+        imgsz: int | None = None,
         tracker: str = "bytetrack.yaml",
         extra_models: Sequence[str] = (),
     ):
         self.camera = camera
         self.device = device
         self.conf = conf
-        self.imgsz = imgsz
         self.tracker = tracker
         self.model = YOLO(model)
+        # Mặc định chạy mỗi mô hình ở đúng cỡ ảnh nó được train. Đo 16/10: mô hình cháy
+        # train ở 512 mà ép chạy ở 640 thì báo nhầm lửa tăng từ 4,7% lên 15,1% số khung.
+        self.imgsz = imgsz or _trained_imgsz(self.model)
         self.classes = _map_classes(self.model.names)
         log.info(
-            "Model %s: dùng %d/%d lớp -> %s",
+            "Model %s: dùng %d/%d lớp -> %s, cỡ ảnh %s",
             model,
             len(self.classes),
             len(self.model.names),
             sorted(c.value for c in self.classes.values()),
+            self.imgsz,
         )
 
         # Mô hình phụ chỉ góp những lớp mô hình chính chưa có, để một vật không
         # bị nhận hai lần (ví dụ cả hai mô hình cùng có lớp person).
-        self.extras: list[tuple[YOLO, dict[int, DetectClass]]] = []
+        self.extras: list[tuple[YOLO, dict[int, DetectClass], int]] = []
         for path in extra_models:
             extra = YOLO(path)
             have = set(self.detect_classes)
@@ -83,15 +86,16 @@ class SafetyPipeline:
                     path, sorted(extra.names.values()),
                 )
                 continue
-            log.info("Model phụ %s: dùng %d/%d lớp -> %s, không bám vết",
-                     path, len(mapping), len(extra.names), sorted(c.value for c in mapping.values()))
-            self.extras.append((extra, mapping))
+            size = _trained_imgsz(extra)
+            log.info("Model phụ %s: dùng %d/%d lớp -> %s, cỡ ảnh %s, không bám vết",
+                     path, len(mapping), len(extra.names), sorted(c.value for c in mapping.values()), size)
+            self.extras.append((extra, mapping, size))
 
     @property
     def detect_classes(self) -> set[DetectClass]:
         """Mọi lớp mà pipeline nhận diện được, gộp cả mô hình chính lẫn mô hình phụ."""
         found = set(self.classes.values())
-        for _, mapping in self.extras:
+        for _, mapping, _ in self.extras:
             found.update(mapping.values())
         return found
 
@@ -106,9 +110,9 @@ class SafetyPipeline:
             verbose=False,
         )
         detections = list(_detections(results[0], self.classes))
-        for extra, mapping in self.extras:
+        for extra, mapping, size in self.extras:
             res = extra.predict(frame, device=self.device, conf=self.conf,
-                                imgsz=self.imgsz, verbose=False)
+                                imgsz=size, verbose=False)
             detections.extend(_detections(res[0], mapping))
 
         height, width = frame.shape[:2]
@@ -119,6 +123,12 @@ class SafetyPipeline:
             height=height,
             detections=tuple(detections),
         )
+
+
+def _trained_imgsz(model, default: int = 640) -> int:
+    """Cỡ ảnh lúc train, Ultralytics lưu trong tệp .pt. Không có thì dùng 640."""
+    size = (getattr(model, "overrides", None) or {}).get("imgsz")
+    return int(size) if isinstance(size, (int, float)) and size > 0 else default
 
 
 def _detections(result, classes: dict[int, DetectClass]) -> tuple[Detection, ...]:

@@ -47,17 +47,21 @@ class Result:
 
 
 class FakeModel:
-    def __init__(self, names, rows, ids=None):
+    def __init__(self, names, rows, ids=None, imgsz=None):
         self.names = names
         self.rows, self.ids = rows, ids
+        self.overrides = {"imgsz": imgsz} if imgsz else {}
         self.track_calls = self.predict_calls = 0
+        self.last_kw = {}
 
     def track(self, frame, **kw):
         self.track_calls += 1
+        self.last_kw = kw
         return [Result(self.rows, self.ids)]
 
     def predict(self, frame, **kw):
         self.predict_calls += 1
+        self.last_kw = kw
         return [Result(self.rows)]
 
 
@@ -112,6 +116,16 @@ def test_khong_co_mo_hinh_phu_thi_chay_nhu_cu(models):
     models["coco.pt"] = FakeModel({0: "person"}, [(0, PERSON_BOX, 0.9)], ids=[3])
     p = SafetyPipeline("coco.pt", "xuong_han")
     assert [d.track_id for d in p.process(1.0, FRAME).detections] == [3]
+
+
+def test_moi_mo_hinh_chay_dung_co_anh_luc_train(models):
+    """Mô hình cháy train ở 512 mà ép chạy 640 thì báo nhầm lửa tăng từ 4,7% lên 15,1%."""
+    models["coco.pt"] = FakeModel({0: "person"}, [], imgsz=640)
+    models["fire.pt"] = FakeModel({0: "fire"}, [], imgsz=512)
+    p = SafetyPipeline("coco.pt", "xuong_han", extra_models=["fire.pt"])
+    p.process(1.0, FRAME)
+    assert models["coco.pt"].last_kw["imgsz"] == 640
+    assert models["fire.pt"].last_kw["imgsz"] == 512
 
 
 def test_ten_lop_lech_kieu_viet_van_khop():
