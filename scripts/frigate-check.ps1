@@ -110,7 +110,16 @@ if (-not $okV6 -and $localhostFirst.AddressFamily -eq "InterNetworkV6") {
     Warn "localhost -> ::1 (IPv6) nhung cong 8554 chi mo IPv4: KHONG dung rtsp://localhost, dung rtsp://127.0.0.1"
 }
 
-# 8. MQTT: broker phai tu choi khach khong mat khau, va Frigate phai dang nhap duoc.
+# 8. Tai khoan tren giao dien: ngoai admin phai co tai khoan chi xem (tuan 4).
+$usersRaw = Frigate-Api "users"
+if ($usersRaw) {
+    $users = $usersRaw | ConvertFrom-Json
+    $viewer = @($users | Where-Object { $_.role -eq "viewer" })
+    if ($viewer.Count -gt 0) { Ok ("Tai khoan chi xem: {0}" -f ($viewer.username -join ", ")) }
+    else { Warn "Chua co tai khoan role=viewer - xem docs/canh-bao-telegram.md muc 5" }
+}
+
+# 9. MQTT: broker phai tu choi khach khong mat khau, va Frigate phai dang nhap duoc.
 $envFile = Join-Path $repo ".env"
 $creds = @{}
 if (Test-Path $envFile) {
