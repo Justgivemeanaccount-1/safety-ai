@@ -147,7 +147,8 @@ Các field module dùng từ payload của Frigate:
 | `after.camera` | → `Incident.camera` |
 | `after.data.zones` | chỉ xử lý khi có `vung_nguy_hiem` |
 | `after.start_time` | → `Incident.ts` |
-| `after.id` | → `Incident.frigate_event_id`, và là khoá chống gửi trùng |
+| `after.id` | khoá chống gửi trùng (mã **review**, không phải mã sự kiện) |
+| `after.data.detections[0]` | → `Incident.frigate_event_id`, để link mở được trong Frigate |
 
 > **Alert không đến bằng tin `new`.** (Long Uy đo thực tế trên Frigate 0.17.)
 > Một review thường mở ra bằng tin `new` với `severity: detection`, rồi một tin `update`
@@ -159,7 +160,11 @@ Các field module dùng từ payload của Frigate:
 > Một review phát ra nhiều tin `update` liên tiếp, nên phải nhớ các `after.id` đã gửi
 > để mỗi review chỉ báo Telegram **một lần**.
 
-Quy đổi sang `Incident` với `label=IncidentLabel.DANGER_ZONE` và `frigate_event_id=after.id` —
+> **`frigate_event_id` là mã sự kiện, không phải mã review.** Giao diện mở sự cố bằng
+> `/explore?event_id=...`; đưa mã review vào đó thì Frigate báo "No Tracked Objects Found".
+> Lấy `after.data.detections[0]`; review không có `detections` thì mới đành dùng `after.id`.
+
+Quy đổi sang `Incident` với `label=IncidentLabel.DANGER_ZONE` và `frigate_event_id` như trên —
 vùng nguy hiểm **do Frigate lo**, module chỉ chuyển tiếp cảnh báo, không tự phát hiện.
 
 ## 5. Tên camera và vùng

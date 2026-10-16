@@ -13,7 +13,9 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass
+from html import escape
 from pathlib import Path
+from urllib.parse import quote
 
 import requests
 
@@ -35,19 +37,24 @@ LABEL_VI: dict[IncidentLabel, str] = {
 
 
 def format_message(incident: Incident, frigate_ui: str | None = None) -> str:
-    """Soạn nội dung tin (HTML của Telegram)."""
+    """Soạn nội dung tin (HTML của Telegram).
+
+    Mọi chuỗi lấy từ dữ liệu đều phải escape: Telegram từ chối cả tin khi HTML sai,
+    nên một tên camera hay sub_label có dấu `<` hoặc `&` là mất luôn cảnh báo.
+    """
     gio = time.strftime("%H:%M:%S %d/%m/%Y", time.localtime(incident.ts))
+    ten_su_co = LABEL_VI.get(incident.label, incident.label.value)
     dong = [
-        f"<b>[{incident.severity.vi}] {LABEL_VI.get(incident.label, incident.label.value)}</b>",
-        f"Camera: <code>{incident.camera}</code>",
+        f"<b>[{escape(incident.severity.vi)}] {escape(ten_su_co)}</b>",
+        f"Camera: <code>{escape(incident.camera)}</code>",
         f"Thời gian: {gio}",
         f"Độ tin cậy: {incident.score:.2f}",
     ]
     if incident.sub_label:
-        dong.append(f"Chi tiết: {incident.sub_label}")
+        dong.append(f"Chi tiết: {escape(incident.sub_label)}")
     if frigate_ui and incident.frigate_event_id:
-        url = f"{frigate_ui.rstrip('/')}/explore?event_id={incident.frigate_event_id}"
-        dong.append(f'<a href="{url}">Xem trong Frigate</a>')
+        url = f"{frigate_ui.rstrip('/')}/explore?event_id={quote(incident.frigate_event_id, safe='')}"
+        dong.append(f'<a href="{escape(url, quote=True)}">Xem trong Frigate</a>')
     return "\n".join(dong)
 
 
@@ -74,6 +81,14 @@ class TelegramNotifier:
     def _url(self, method: str) -> str:
         return f"{TELEGRAM_API}/bot{self.token}/{method}"
 
+    def _an_token(self, text: object) -> str:
+        """Che token trước khi ghi log.
+
+        requests ném lỗi kèm nguyên URL, mà URL chứa token — log thẳng là token
+        nằm trong tệp log, ai đọc được log là điều khiển được bot.
+        """
+        return str(text).replace(self.token, "***")
+
     def send(self, incident: Incident) -> bool:
         text = format_message(incident, self.frigate_ui)
         anh = Path(incident.snapshot) if incident.snapshot else None
@@ -89,9 +104,13 @@ class TelegramNotifier:
                     )
                 if r.ok:
                     return True
-                log.warning("Telegram từ chối ảnh (%s), gửi lại dạng chữ: %s", r.status_code, r.text[:200])
+                log.warning(
+                    "Telegram từ chối ảnh (%s), gửi lại dạng chữ: %s",
+                    r.status_code,
+                    self._an_token(r.text[:200]),
+                )
             except requests.RequestException as e:
-                log.warning("Lỗi gửi ảnh Telegram, gửi lại dạng chữ: %s", e)
+                log.warning("Lỗi gửi ảnh Telegram, gửi lại dạng chữ: %s", self._an_token(e))
         elif anh is not None:
             log.warning("Không thấy ảnh %s, gửi tin chữ", anh)
 
@@ -107,11 +126,11 @@ class TelegramNotifier:
                 timeout=self.timeout,
             )
         except requests.RequestException as e:
-            log.error("Không gửi được Telegram: %s", e)
+            log.error("Không gửi được Telegram: %s", self._an_token(e))
             return False
 
         if not r.ok:
-            log.error("Telegram trả lỗi %s: %s", r.status_code, r.text[:200])
+            log.error("Telegram trả lỗi %s: %s", r.status_code, self._an_token(r.text[:200]))
             return False
         return True
 
@@ -121,7 +140,7 @@ class TelegramNotifier:
             r = self._http.get(self._url("getMe"), timeout=self.timeout)
             if r.ok:
                 return r.json().get("result", {}).get("username")
-            log.error("getMe lỗi %s: %s", r.status_code, r.text[:200])
+            log.error("getMe lỗi %s: %s", r.status_code, self._an_token(r.text[:200]))
         except requests.RequestException as e:
-            log.error("Không gọi được getMe: %s", e)
+            log.error("Không gọi được getMe: %s", self._an_token(e))
         return None

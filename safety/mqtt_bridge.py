@@ -73,6 +73,12 @@ class ReviewWatcher:
         while len(self._da_gui) > self.nho_toi_da:
             self._da_gui.popitem(last=False)
 
+        # Khoá chống trùng là mã review, nhưng mã lưu vào Incident phải là mã SỰ KIỆN
+        # (người bị phát hiện): /explore?event_id=<mã review> cho ra
+        # "No Tracked Objects Found". Review không có detections thì đành dùng mã review.
+        detections = self.detection_ids(payload)
+        event_id = detections[0] if detections else review_id
+
         return Incident(
             camera=after.get("camera", ""),
             label=IncidentLabel.DANGER_ZONE,
@@ -81,7 +87,7 @@ class ReviewWatcher:
             score=1.0,
             ts=float(after.get("start_time") or time.time()),
             sub_label=f"Frigate: {self.zone}",
-            frigate_event_id=review_id,
+            frigate_event_id=event_id,
         )
 
     def detection_ids(self, payload: dict) -> list[str]:
@@ -200,8 +206,12 @@ def main() -> int:
     if user:
         client.username_pw_set(user, password)
 
+    ket_qua_noi: dict[str, object] = {}
+
     def on_connect(c, userdata, flags, reason_code, properties=None):
+        ket_qua_noi["code"] = reason_code
         if reason_code != 0:
+            # Sai mật khẩu rơi vào đây, không phải vào lỗi mạng của connect().
             log.error("MQTT từ chối kết nối: %s", reason_code)
             return
         log.info("Đã nối MQTT, nghe %s", TOPIC_REVIEWS)
@@ -223,9 +233,20 @@ def main() -> int:
     client.connect(host, port, keepalive=60)
 
     if args.check:
-        client.loop(timeout=2.0)
-        log.info("Kết nối MQTT %s:%s và Telegram đều tốt", host, port)
+        # Broker trả mã từ chối trong on_connect, nên phải chờ có kết quả rồi mới kết luận.
+        han = time.monotonic() + 5.0
+        while "code" not in ket_qua_noi and time.monotonic() < han:
+            client.loop(timeout=0.5)
         client.disconnect()
+
+        code = ket_qua_noi.get("code")
+        if code is None:
+            log.error("Không nhận được phản hồi từ MQTT %s:%s sau 5 giây", host, port)
+            return 1
+        if int(code) != 0:
+            log.error("MQTT %s:%s từ chối: %s (kiểm tra MQTT_USER/MQTT_PASS)", host, port, code)
+            return 1
+        log.info("Kết nối MQTT %s:%s và Telegram đều tốt", host, port)
         return 0
 
     log.info("Đang chạy. Ctrl+C để dừng.")

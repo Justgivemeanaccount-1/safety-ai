@@ -56,3 +56,19 @@ def test_thieu_token_bao_loi_ngay():
     except ValueError:
         return
     raise AssertionError("phải báo lỗi khi thiếu token")
+
+
+def test_khong_lo_token_trong_log():
+    # requests nem loi kem nguyen URL (co token); log phai che lai.
+    n = TelegramNotifier(token="123456:SIEU_BI_MAT", chat_id="1")
+    loi = Exception("HTTPSConnectionPool: /bot123456:SIEU_BI_MAT/sendMessage that bai")
+    che = n._an_token(loi)
+    assert "SIEU_BI_MAT" not in che
+    assert "***" in che
+
+
+def test_escape_html_trong_noi_dung():
+    # Ten camera hay sub_label co < hoac & lam Telegram tu choi ca tin -> mat canh bao.
+    msg = format_message(incident(camera="xuong<han>", sub_label="ca A & B"))
+    assert "xuong<han>" not in msg
+    assert "&lt;" in msg and "&amp;" in msg

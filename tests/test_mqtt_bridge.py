@@ -40,7 +40,8 @@ def test_tin_update_nang_len_alert_thi_canh_bao():
     assert incident.label is IncidentLabel.DANGER_ZONE
     assert incident.severity is Severity.HIGH
     assert incident.camera == "xuong_han"
-    assert incident.frigate_event_id == REVIEW_ID
+    # Ma luu lai la ma su kien de link /explore mo dung, khong phai ma review.
+    assert incident.frigate_event_id == "ev1"
     assert incident.ts == 1790948780.082947
 
 
@@ -78,3 +79,16 @@ def test_khong_nho_qua_nhieu_id():
 
 def test_detection_ids_de_tai_anh():
     assert ReviewWatcher().detection_ids(tin("update", "alert", truoc="detection")) == ["ev1", "ev2"]
+
+
+def test_dung_ma_su_kien_cho_link_khong_dung_ma_review():
+    # /explore?event_id=<ma review> cho ra "No Tracked Objects Found" (Dat do thuc te).
+    incident = ReviewWatcher().incident_from(tin("update", "alert", truoc="detection"))
+    assert incident.frigate_event_id == "ev1"
+
+
+def test_khong_co_detections_thi_dung_ma_review():
+    payload = tin("update", "alert", truoc="detection")
+    payload["after"]["data"]["detections"] = []
+    incident = ReviewWatcher().incident_from(payload)
+    assert incident.frigate_event_id == REVIEW_ID
