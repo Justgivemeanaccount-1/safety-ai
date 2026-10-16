@@ -34,6 +34,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--source", default="0", help="RTSP URL, đường dẫn file, hoặc số hiệu webcam")
     p.add_argument("--camera", default="xuong_han", help="Tên camera, phải trùng tên trong Frigate")
     p.add_argument("--model", default="yolo26n.pt")
+    p.add_argument("--extra-model", action="append", default=[], metavar="PATH",
+                   help="Mô hình phụ chạy song song, không bám vết, vd models/fire_smoke_v0.pt (lặp lại được)")
     p.add_argument("--device", default="0", help="0 = GPU đầu tiên, cpu = chạy CPU")
     p.add_argument("--fps", type=float, default=DEFAULT_FPS)
     p.add_argument("--conf", type=float, default=0.25)
@@ -66,6 +68,7 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
     pipeline = SafetyPipeline(
+        extra_models=args.extra_model,
         model=args.model,
         camera=args.camera,
         device=args.device,
@@ -79,7 +82,7 @@ def main(argv: list[str] | None = None) -> int:
     frames = 0
     incidents = 0
     started = 0.0
-    infer_total = 0.0
+    infer_ms: list[float] = []
 
     try:
         for ts, frame in source:
@@ -87,7 +90,7 @@ def main(argv: list[str] | None = None) -> int:
                 started = time.time()
             t0 = time.perf_counter()
             result = pipeline.process(ts, frame)
-            infer_total += time.perf_counter() - t0
+            infer_ms.append(1000 * (time.perf_counter() - t0))
             frames += 1
             seen_tracks.update(d.track_id for d in result.detections if d.track_id is not None)
 
@@ -119,11 +122,28 @@ def main(argv: list[str] | None = None) -> int:
     print(
         f"Đã xử lý {frames} khung trong {elapsed:.1f}s "
         f"({frames / elapsed if elapsed else 0:.1f} FPS, không tính lúc nạp model), "
-        f"suy luận {1000 * infer_total / frames if frames else 0:.0f}ms/khung, "
         f"{len(seen_tracks)} track_id khác nhau: {sorted(seen_tracks)}"
     )
+    print(_speed(infer_ms))
     print(f"{incidents} sự cố; {outputs.summary()}")
     return 0
+
+
+# Vài khung đầu chậm hơn hẳn vì GPU còn khởi động (khung đầu tiên ~2 giây).
+# Tính chung vào trung bình thì một lần chạy 40 khung ra ~75 ms thay vì ~20 ms:
+# chính lỗi này từng làm nhóm tin con số 71 ms/khung ở tuần 2.
+WARMUP_FRAMES = 5
+
+
+def _speed(infer_ms: list[float]) -> str:
+    if not infer_ms:
+        return "Chưa xử lý khung nào"
+    steady = sorted(infer_ms[WARMUP_FRAMES:])
+    if not steady:
+        return f"Suy luận: mới có {len(infer_ms)} khung, toàn là khung khởi động GPU, chưa đo được tốc độ ổn định"
+    return (f"Suy luận: khung đầu {infer_ms[0]:.0f} ms (GPU khởi động); "
+            f"bỏ {WARMUP_FRAMES} khung đầu thì trung vị {steady[len(steady) // 2]:.0f} ms/khung, "
+            f"95% số khung dưới {steady[min(len(steady) - 1, int(0.95 * len(steady)))]:.0f} ms")
 
 
 def _summarise(n: int, result: FrameResult) -> str:

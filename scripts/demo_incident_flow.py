@@ -110,6 +110,8 @@ def main() -> int:
     p.add_argument("--camera", default="xuong_han")
     p.add_argument("--frigate", default="http://127.0.0.1:5000/api")
     p.add_argument("--model", default="yolo26n.pt")
+    p.add_argument("--extra-model", action="append", default=[], metavar="PATH",
+                   help="Mo hinh phu chay song song, khong bam vet, vd models/fire_smoke_v0.pt (lap lai duoc)")
     p.add_argument("--device", default="0")
     p.add_argument("--fps", type=float, default=5.0)
     p.add_argument("--seconds", type=float, default=40.0)
@@ -123,8 +125,9 @@ def main() -> int:
     args = p.parse_args()
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
-    pipeline = SafetyPipeline(model=args.model, camera=args.camera, device=args.device)
-    have = set(pipeline.classes.values())
+    pipeline = SafetyPipeline(model=args.model, camera=args.camera, device=args.device,
+                              extra_models=args.extra_model)
+    have = pipeline.detect_classes
     fake_ppe = DetectClass.NO_HELMET not in have
     fake_fire = DetectClass.FIRE not in have
     print(f"gia lap: khong mu={'CO' if fake_ppe else 'khong'}, lua={'CO' if fake_fire else 'khong'}")

@@ -159,6 +159,8 @@ def main() -> int:
     p.add_argument("--source", default="data/samples/xuong_han.mp4")
     p.add_argument("--out", default="data/demo_fire.jpg")
     p.add_argument("--model", default="yolo26n.pt")
+    p.add_argument("--extra-model", action="append", default=[], metavar="PATH",
+                   help="Mo hinh phu chay song song, khong bam vet, vd models/fire_smoke_v0.pt (lap lai duoc)")
     p.add_argument("--device", default="0")
     p.add_argument("--fps", type=float, default=5.0)
     # Tu khung 20 tro di video co 3 nguoi trong khung, de anh demo cho thay
@@ -167,9 +169,10 @@ def main() -> int:
                    help="Bo qua may khung dau, de chon doan video co nguoi trong khung")
     args = p.parse_args()
 
-    pipeline = SafetyPipeline(model=args.model, camera="xuong_han", device=args.device)
+    pipeline = SafetyPipeline(model=args.model, camera="xuong_han", device=args.device,
+                              extra_models=args.extra_model)
     # Model da nhan dien duoc lua thi khong chen gia lap nua.
-    faked = DetectClass.FIRE not in pipeline.classes.values()
+    faked = DetectClass.FIRE not in pipeline.detect_classes
     print("che do GIA LAP: hop lua do script chen vao" if faked
           else "che do THAT: model da co lop fire, khong chen gia lap")
 
